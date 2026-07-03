@@ -125,7 +125,7 @@ export function Footer() {
 
       <div className="max-w-7xl mx-auto mt-20 pt-8 border-t border-border flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
         <div>&copy; {new Date().getFullYear()} Virtuo Designs. All rights reserved.</div>
-        <div>Cape Town, South Africa — Serving Clients Globally</div>
+        <div>Firlands Minor Rd, Admirals Park, Cape Town, 7135 — Serving Clients Globally</div>
       </div>
     </footer>
   );

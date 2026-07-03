@@ -101,7 +101,8 @@ export default function Contact() {
                 </div>
                 <div>
                   <h4 className="text-sm font-semibold tracking-widest uppercase mb-1">Location</h4>
-                  <p className="text-lg text-muted-foreground">Cape Town, South Africa</p>
+                  <p className="text-lg text-muted-foreground">Firlands Minor Rd,</p>
+                  <p className="text-lg text-muted-foreground">Admirals Park, Cape Town, 7135</p>
                   <p className="text-sm text-muted-foreground/70 mt-1">Available for remote engagements globally.</p>
                 </div>
               </div>
