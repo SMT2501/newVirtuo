@@ -226,7 +226,7 @@ export default function Consultations() {
           </p>
           <div className="flex flex-wrap gap-4 justify-center">
             <a
-              href="https://calendly.com/virtuodesigns"
+              href="https://calendly.com/samkelemthuli51/30min"
               target="_blank"
               rel="noopener noreferrer"
               className="bg-background text-foreground px-8 py-4 rounded-full text-sm font-semibold tracking-wide hover:scale-105 transition-transform inline-flex items-center gap-2"

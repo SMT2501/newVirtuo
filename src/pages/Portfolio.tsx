@@ -19,11 +19,37 @@ interface Project {
 
 const projects: Project[] = [
   {
+    title: "MJP Security",
+    category: "Brand Identity & Web Design",
+    desc: "A bold, high-impact website for a Cape Town armed response and security services company — built to command authority and convert visitors into clients.",
+    tech: "Custom HTML/CSS, JavaScript, Mobile-First Design",
+    img: "/images/mjp-security-hero.jpg",
+    liveUrl: "https://mjpsecurity.co.za/",
+    client: "MJP Security Services",
+    challenge:
+      "MJP Security needed a digital presence that matched the gravitas of their armed response brand — existing generic templates failed to convey the professionalism and trustworthiness their clients demand.",
+    solution:
+      "We designed a high-contrast, dark-themed site with bold typography, dramatic imagery of their branded fleet, and a clear service hierarchy — giving the brand the authority it needed to compete in the premium security market.",
+    features: [
+      "Branded fleet & personnel photography showcase",
+      "Services overview: armed response, guarding, CCTV, access control",
+      "PSIRA registration and credentials display",
+      "24/7 emergency contact call-to-action",
+      "Mobile-optimised layout for on-the-go clients",
+      "Integrated WhatsApp & direct call buttons",
+    ],
+    results: [
+      "Live at mjpsecurity.co.za serving clients across Cape Town",
+      "Brand identity elevated to premium market positioning",
+      "Direct enquiry rate increased via prominent CTAs",
+    ],
+  },
+  {
     title: "Campus Marketplace",
     category: "Web App / Platform",
     desc: "A secure, peer-to-peer marketplace connecting university students for buying and selling goods. Designed to solve a real campus need with seamless UX.",
     tech: "React, Node.js, MongoDB",
-    img: "/images/virtuo-work-1.png",
+    img: "/images/campus-marketplace-mockup.jpg",
     liveUrl: "https://mycampusmarketplace.com/",
     client: "My Campus Marketplace",
     challenge:
@@ -49,7 +75,7 @@ const projects: Project[] = [
     category: "Web Design / Non-Profit",
     desc: "A beautifully crafted informational website for a community organisation. Built with a focus on accessibility, clear communication, and strong SEO fundamentals.",
     tech: "Bootstrap, HTML/CSS/JS, Custom UI",
-    img: "/images/virtuo-work-2.png",
+    img: "/images/umnini-mockup.jpg",
     liveUrl: "https://umninitrust.org.za/",
     client: "Umnini Community Trust",
     challenge:
@@ -68,6 +94,58 @@ const projects: Project[] = [
       "Fully live at umninitrust.org.za",
       "Improved stakeholder communication and credibility",
       "Strong organic search visibility across relevant community terms",
+    ],
+  },
+  {
+    title: "Pro Cleaning & Hygiene",
+    category: "Web Design / Service Business",
+    desc: "A clean, conversion-focused website for a professional cleaning company — built to turn visitors into bookings with clear service offerings and a seamless WhatsApp booking flow.",
+    tech: "Custom HTML/CSS/JS, Mobile-First Design",
+    img: "/images/procleaning-mockup.jpg",
+    liveUrl: "https://myprocleaning.co.za/",
+    client: "Pro Cleaning & Hygiene",
+    challenge:
+      "A growing cleaning business needed a professional online presence that could compete with established players — the brand needed to communicate trust, reliability, and easy booking without any friction.",
+    solution:
+      "We built a bold, high-impact site with a full-bleed hero, a clean service breakdown, and a prominent 'Book Now' CTA wired to WhatsApp — making it effortless for potential clients to convert on both desktop and mobile.",
+    features: [
+      "Full-bleed hero with booking CTA",
+      "Service pages: residential, commercial, deep clean",
+      "Trust signals: Pro Certified badge, testimonials",
+      "WhatsApp-integrated booking flow",
+      "Mobile-first responsive layout",
+      "Eco-friendly & trusted professional messaging",
+    ],
+    results: [
+      "Live at myprocleaning.co.za serving clients across South Africa",
+      "WhatsApp booking flow drives direct client conversions",
+      "Professional brand positioning elevated above competitors",
+    ],
+  },
+  {
+    title: "Siphulathuthu Engineering",
+    category: "Corporate Web / Tech",
+    desc: "A bold corporate website for a proudly black-owned engineering firm — built to reflect technical authority and attract enterprise clients across ICT, AI, and cybersecurity.",
+    tech: "Custom HTML/CSS/JS, Responsive Design",
+    img: "/images/siphulathuthu-mockup.jpg",
+    liveUrl: "https://siphulathuthu.co.za/",
+    client: "Siphulathuthu Engineering Services",
+    challenge:
+      "A black-owned engineering company delivering ICT, cybersecurity, and AI solutions needed a digital presence that matched the scale of the enterprise clients they were targeting — their previous site undersold their capability significantly.",
+    solution:
+      "We designed a deep-blue, authoritative corporate site with impactful headline copy, a prominent stats section (50+ projects, 99.9% uptime), structured service pages, and a clean contact flow — positioning them as a credible, high-calibre partner.",
+    features: [
+      "Hero with headline stats: 50+ projects, 99.9% uptime",
+      "Service pages: ICT, AI, cybersecurity, telecommunications",
+      "About & leadership section",
+      "Engineering excellence showcased through case studies",
+      "Contact & RFQ enquiry form",
+      "Fully responsive across all devices",
+    ],
+    results: [
+      "Live at siphulathuthu.co.za serving enterprise clients",
+      "Brand credibility elevated to compete for large contracts",
+      "Clear service hierarchy driving qualified inbound enquiries",
     ],
   },
   {
