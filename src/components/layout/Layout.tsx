@@ -1,7 +1,9 @@
+import { lazy, Suspense } from "react";
 import { Header } from "./Header";
 import { Footer } from "./Footer";
-import { WhatsAppFloat } from "./WhatsAppFloat";
-import { ChatBot } from "./ChatBot";
+
+const WhatsAppFloat = lazy(() => import("./WhatsAppFloat").then((module) => ({ default: module.WhatsAppFloat })));
+const ChatBot = lazy(() => import("./ChatBot").then((module) => ({ default: module.ChatBot })));
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -11,8 +13,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
         {children}
       </main>
       <Footer />
-      <WhatsAppFloat />
-      <ChatBot />
+      <Suspense fallback={null}>
+        <WhatsAppFloat />
+        <ChatBot />
+      </Suspense>
     </div>
   );
 }

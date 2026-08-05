@@ -34,7 +34,7 @@ export function Footer() {
         <div className="max-w-sm">
           <div className="flex items-center gap-2 mb-6">
             <img src="/images/logo.webp" alt="Virtuo Designs" width={32} height={32} loading="lazy" className="h-8 w-auto opacity-90" />
-            <span className="font-serif text-2xl tracking-tight uppercase font-semibold">Virtuo</span>
+            <span className="font-serif text-2xl tracking-tight uppercase font-semibold">Virtuo Designs</span>
           </div>
           <p className="text-muted-foreground text-sm leading-relaxed mb-6">
             Building digital experiences that grow businesses, and the intelligence behind them.

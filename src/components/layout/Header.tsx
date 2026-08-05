@@ -36,7 +36,7 @@ export function Header() {
         <div className="px-4 md:px-6 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 group">
             <img src="/images/logo.webp" alt="Virtuo Designs" width={32} height={32} className="h-8 w-auto opacity-90 group-hover:opacity-100 transition-opacity" />
-            <span className="font-serif text-xl md:text-2xl tracking-tight uppercase font-semibold">Virtuo</span>
+            <span className="font-serif text-xl md:text-2xl tracking-tight uppercase font-semibold">Virtuo Designs</span>
           </Link>
 
           {/* Desktop Nav */}
@@ -63,6 +63,9 @@ export function Header() {
           {/* Mobile Toggle */}
           <button
             className="md:hidden text-foreground p-2"
+            aria-label={isMobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+            aria-expanded={isMobileMenuOpen}
+            aria-controls="mobile-navigation"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           >
             {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
@@ -71,7 +74,7 @@ export function Header() {
 
         {/* Mobile Nav */}
         {isMobileMenuOpen && (
-          <div className="md:hidden absolute top-full left-0 right-0 mt-2 bg-background/95 backdrop-blur-lg border border-border rounded-2xl shadow-xl overflow-hidden">
+          <div id="mobile-navigation" className="md:hidden absolute top-full left-0 right-0 mt-2 bg-background/95 backdrop-blur-lg border border-border rounded-2xl shadow-xl overflow-hidden">
             <nav className="flex flex-col py-4 px-4 gap-4">
               {navLinks.map((link) => (
                 <Link

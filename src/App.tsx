@@ -1,19 +1,21 @@
+import { lazy, Suspense } from "react";
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import NotFound from "@/pages/not-found";
 import { ScrollToTop } from "@/components/ScrollToTop";
 
 import Home from "@/pages/Home";
-import About from "@/pages/About";
-import Services from "@/pages/Services";
-import Portfolio from "@/pages/Portfolio";
-import Pricing from "@/pages/Pricing";
-import Contact from "@/pages/Contact";
-import Consultations from "@/pages/Consultations";
-import PrivacyPolicy from "@/pages/PrivacyPolicy";
-import Faq from "@/pages/Faq";
+
+const About = lazy(() => import("@/pages/About"));
+const Services = lazy(() => import("@/pages/Services"));
+const Portfolio = lazy(() => import("@/pages/Portfolio"));
+const Pricing = lazy(() => import("@/pages/Pricing"));
+const Contact = lazy(() => import("@/pages/Contact"));
+const Consultations = lazy(() => import("@/pages/Consultations"));
+const PrivacyPolicy = lazy(() => import("@/pages/PrivacyPolicy"));
+const Faq = lazy(() => import("@/pages/Faq"));
+const NotFound = lazy(() => import("@/pages/not-found"));
 
 const queryClient = new QueryClient();
 
@@ -38,10 +40,12 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <ScrollToTop />
-          <Router />
-        </WouterRouter>
+        <Suspense fallback={null}>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <ScrollToTop />
+            <Router />
+          </WouterRouter>
+        </Suspense>
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>

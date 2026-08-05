@@ -12,7 +12,7 @@ export default function Home() {
         path="/"
       />
       {/* Hero Section */}
-      <section className="relative min-h-[100svh] flex flex-col justify-end pb-24 px-4 md:px-12 pt-32 overflow-hidden">
+      <section className="relative min-h-svh flex flex-col justify-end pb-24 px-4 md:px-12 pt-32 overflow-hidden">
         <div className="absolute inset-0 z-0">
           <img
             src="/images/virtuo-hero.webp"
@@ -20,20 +20,22 @@ export default function Home() {
             width={1600}
             height={873}
             loading="eager"
+            decoding="async"
+            fetchPriority="high"
             className="w-full h-full object-cover object-center opacity-40 scale-105"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent mix-blend-multiply" />
+          <div className="absolute inset-0 bg-linear-to-t from-background via-background/60 to-transparent mix-blend-multiply" />
           <div className="absolute inset-0 bg-background/20 backdrop-blur-[2px]" />
         </div>
 
         <div className="relative z-10 max-w-6xl mx-auto w-full">
-          <h1 className="text-5xl md:text-7xl lg:text-8xl font-serif leading-[1] tracking-[-0.03em] text-foreground mb-8 text-balance animate-in fade-in slide-in-from-bottom-8 duration-1000">
+          <h1 className="text-5xl md:text-7xl lg:text-8xl font-serif leading-none tracking-[-0.03em] text-foreground mb-8 text-balance">
             We Build Digital Experiences That Grow Businesses.
           </h1>
 
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-12 border-t border-foreground/10 pt-8 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-300 fill-mode-both">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-12 border-t border-foreground/10 pt-8">
             <div className="max-w-xl">
-              <p className="text-lg md:text-xl text-muted-foreground font-light leading-relaxed mb-8 text-balance">
+              <p className="text-lg md:text-xl text-foreground/75 font-light leading-relaxed mb-8 text-balance">
                 From bespoke websites to enterprise AI transformation — we combine hands-on technical execution with 9+ years of enterprise strategy experience.
               </p>
               <div className="flex flex-wrap gap-4">
@@ -75,7 +77,7 @@ export default function Home() {
           <h2 className="text-3xl md:text-5xl font-serif leading-tight mb-8">
             A studio with one foot in scrappy student-founder hustle, and the other in enterprise-grade strategic credibility.
           </h2>
-          <p className="text-lg text-muted-foreground font-light leading-relaxed mb-12 max-w-2xl mx-auto">
+          <p className="text-lg text-foreground/75 font-light leading-relaxed mb-12 max-w-2xl mx-auto">
             Virtuo Designs combines hands-on development capability with deep business analysis. We don't just write code — we design solutions that solve real-world problems.
           </p>
           <Link href="/about" className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-widest text-accent hover:text-accent/80 transition-colors">
@@ -92,7 +94,7 @@ export default function Home() {
           </p>
           <div className="flex flex-wrap justify-center items-center gap-x-12 gap-y-4">
             {["Shoprite", "Sasol", "Mediclinic", "MTN"].map((brand) => (
-              <span key={brand} className="text-xl md:text-2xl font-serif font-semibold text-foreground/25 hover:text-foreground/50 transition-colors tracking-wide">
+              <span key={brand} className="text-xl md:text-2xl font-serif font-semibold text-foreground/55 hover:text-foreground/80 transition-colors tracking-wide">
                 {brand}
               </span>
             ))}
@@ -116,13 +118,14 @@ export default function Home() {
           {/* Work Item 1 */}
           <div className="flex flex-col md:flex-row items-center gap-12 md:gap-20 group">
             <div className="w-full md:w-3/5 overflow-hidden rounded-lg">
-              <div className="aspect-[4/3] w-full overflow-hidden bg-muted">
+              <div className="aspect-4/3 w-full overflow-hidden bg-muted">
                 <img
-                  src="/images/virtuo-work-1.png"
+                  src="/images/virtuo-work-1.webp"
                   alt="Campus Marketplace"
                   width={1200}
                   height={840}
                   loading="lazy"
+                  decoding="async"
                   className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105"
                 />
               </div>
@@ -142,13 +145,14 @@ export default function Home() {
           {/* Work Item 2 */}
           <div className="flex flex-col md:flex-row-reverse items-center gap-12 md:gap-20 group">
             <div className="w-full md:w-3/5 overflow-hidden rounded-lg">
-              <div className="aspect-[4/3] w-full overflow-hidden bg-muted">
+              <div className="aspect-4/3 w-full overflow-hidden bg-muted">
                 <img
-                  src="/images/virtuo-work-2.png"
+                  src="/images/virtuo-work-2.webp"
                   alt="Umnini Community Trust"
                   width={1200}
                   height={840}
                   loading="lazy"
+                  decoding="async"
                   className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105"
                 />
               </div>
@@ -218,7 +222,7 @@ export default function Home() {
                 <div className="hidden md:block absolute top-6 left-full w-full h-px bg-border z-0" />
               )}
               <div className="relative z-10">
-                <div className="text-5xl font-serif text-muted-foreground/20 font-bold mb-5">{item.step}</div>
+                <div className="text-5xl font-serif text-muted-foreground/35 font-bold mb-5">{item.step}</div>
                 <h3 className="text-xl font-serif mb-3">{item.title}</h3>
                 <p className="text-muted-foreground font-light text-sm leading-relaxed">{item.desc}</p>
               </div>
