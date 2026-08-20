@@ -1,0 +1,24 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function internalUser() {
+      return signedIn() && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role in ['admin', 'staff'];
+    }
+
+    function adminUser() {
+      return signedIn() && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    match /clients/{userId}/documents/{fileName} {
+      allow read: if signedIn() && (request.auth.uid == userId || internalUser());
+      allow write: if signedIn() && (request.auth.uid == userId || adminUser())
+        && request.resource.size < 20 * 1024 * 1024
+        && request.resource.contentType in ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+      allow delete: if signedIn() && (request.auth.uid == userId || adminUser());
+    }
+  }
+}

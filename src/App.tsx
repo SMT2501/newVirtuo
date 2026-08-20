@@ -15,6 +15,10 @@ const Contact = lazy(() => import("@/pages/Contact"));
 const Consultations = lazy(() => import("@/pages/Consultations"));
 const PrivacyPolicy = lazy(() => import("@/pages/PrivacyPolicy"));
 const Faq = lazy(() => import("@/pages/Faq"));
+const ClientDashboard = lazy(() => import("@/pages/ClientDashboard"));
+const AdminWorkspace = lazy(() => import("@/pages/AdminWorkspace"));
+const AdminClients = lazy(() => import("@/pages/AdminClients"));
+const AdminProjects = lazy(() => import("@/pages/AdminProjects"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 const queryClient = new QueryClient();
@@ -31,6 +35,10 @@ function Router() {
       <Route path="/contact" component={Contact} />
       <Route path="/privacy-policy" component={PrivacyPolicy} />
       <Route path="/faq" component={Faq} />
+      <Route path="/portal" component={ClientDashboard} />
+      <Route path="/admin" component={AdminWorkspace} />
+      <Route path="/admin/clients" component={AdminClients} />
+      <Route path="/admin/projects" component={AdminProjects} />
       <Route component={NotFound} />
     </Switch>
   );

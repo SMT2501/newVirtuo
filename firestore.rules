@@ -1,0 +1,57 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function internalUser() {
+      return signedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'staff'];
+    }
+
+    function adminUser() {
+      return signedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn() && (request.auth.uid == userId || internalUser());
+      allow create: if adminUser() && request.resource.data.role in ['client', 'staff', 'admin'];
+      allow update: if adminUser();
+      allow delete: if adminUser();
+    }
+
+    match /documents/{documentId} {
+      allow read: if signedIn() && (resource.data.ownerId == request.auth.uid || internalUser());
+      allow create: if signedIn() && (request.resource.data.ownerId == request.auth.uid || internalUser());
+      allow update, delete: if signedIn() && (resource.data.ownerId == request.auth.uid || adminUser());
+    }
+
+    match /proposals/{recordId} {
+      allow read: if internalUser() || (signedIn() && resource.data.clientId == request.auth.uid);
+      allow create, update, delete: if internalUser();
+    }
+
+    match /funding/{recordId} {
+      allow read, write: if internalUser();
+    }
+
+    match /internalDocuments/{recordId} {
+      allow read, write: if internalUser();
+    }
+
+    match /staff/{recordId} {
+      allow read: if internalUser();
+      allow create, update, delete: if adminUser();
+    }
+
+    match /projects/{projectId} {
+      allow read: if internalUser() || (signedIn() && resource.data.clientId == request.auth.uid);
+      allow write: if internalUser();
+    }
+
+    match /invoices/{invoiceId} {
+      allow read: if internalUser() || (signedIn() && resource.data.clientId == request.auth.uid);
+      allow write: if internalUser();
+    }
+  }
+}

@@ -22,6 +22,7 @@ export function Header() {
     { href: "/consultations", label: "Consulting" },
     { href: "/portfolio", label: "Portfolio" },
     { href: "/pricing", label: "Pricing" },
+    { href: "/portal", label: "Client Portal" },
   ];
 
   return (
@@ -29,8 +30,8 @@ export function Header() {
       <div
         className={`relative mx-auto max-w-7xl rounded-2xl transition-all duration-300 ${
           isScrolled
-            ? "bg-gradient-to-b from-background/60 via-background/45 to-background/30 backdrop-blur-lg border border-border/60 shadow-sm py-3"
-            : "bg-gradient-to-b from-background/40 via-background/20 to-transparent backdrop-blur-sm border border-border/20 py-4"
+            ? "bg-linear-to-b from-background/60 via-background/45 to-background/30 backdrop-blur-lg border border-border/60 shadow-sm py-3"
+            : "bg-linear-to-b from-background/40 via-background/20 to-transparent backdrop-blur-sm border border-border/20 py-4"
         }`}
       >
         <div className="px-4 md:px-6 flex items-center justify-between">
