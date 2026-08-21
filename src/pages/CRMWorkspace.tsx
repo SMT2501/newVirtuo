@@ -354,22 +354,37 @@ export default function CRMWorkspace() {
     setBusy(true);
     try {
       const accountClient = clients.find((client) => client.accountId === projectForm.accountId);
+      const projectName = projectForm.name.trim();
       const projectRef = await addDoc(collection(db, "projects"), {
-        accountId: projectForm.accountId, clientId: accountClient?.id || null, name: projectForm.name.trim(), type: projectForm.type,
+        accountId: projectForm.accountId, clientId: accountClient?.id || null, name: projectName, type: projectForm.type,
         status: projectForm.status, progress: Number(projectForm.progress || 0), dueDate: projectForm.dueDate, clientVisible: true,
         milestones: parseMilestones(projectForm.milestones), teamMembers: splitValues(projectForm.teamMembers),
         createdBy: user.uid, createdAt: serverTimestamp(),
       });
       if (projectForm.notes.trim()) await setDoc(doc(db, "projectNotes", projectRef.id), { projectId: projectRef.id, accountId: projectForm.accountId, text: projectForm.notes.trim(), createdBy: user.uid, createdAt: serverTimestamp() });
-       await addActivity(projectForm.accountId, "project_created", `${projectForm.name.trim()} was added to the project plan.`, true, projectRef.id);
-       const createShare = httpsCallable<{ projectId: string }, { shareId: string; pin: string }>(functions, "createProjectShare");
-       const share = await createShare({ projectId: projectRef.id });
+      await addActivity(projectForm.accountId, "project_created", `${projectName} was added to the project plan.`, true, projectRef.id);
+      let share: { shareId: string; pin: string } | null = null;
+      let shareError = "";
+      try {
+        const createShare = httpsCallable<{ projectId: string }, { shareId: string; pin: string }>(functions, "createProjectShare");
+        const shareResult = await createShare({ projectId: projectRef.id });
+        share = shareResult.data;
+      } catch (error) {
+        shareError = error instanceof Error ? error.message : "The private-link function is unavailable.";
+      }
       setProjectForm({ accountId: "", name: "", type: "Website", status: "Discovery", progress: "0", dueDate: "", milestones: "", notes: "", teamMembers: "" });
-       setShareCredentials({ projectName: projectForm.name.trim(), ...share.data });
-       setModal("share");
+      if (share) {
+        setShareCredentials({ projectName, ...share });
+        setModal("share");
+      } else {
+        setMessage(`${projectName} was created. The private project link could not be generated yet.`);
+        setError(`Deploy the Firebase Functions configuration before creating private links. ${shareError}`);
+        resetAndClose();
+      }
       await loadWorkspace();
-    } catch {
-      setError("The project could not be created. Check your Firestore rules.");
+    } catch (error) {
+      const reason = error instanceof Error ? ` ${error.message}` : "";
+      setError(`The project could not be created. Check the deployed Firestore rules and your internal user role.${reason}`);
       setBusy(false);
     }
   }
