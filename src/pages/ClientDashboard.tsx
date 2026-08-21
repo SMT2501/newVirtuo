@@ -117,11 +117,18 @@ export default function ClientDashboard() {
       const activitySnap = isLinkedAccount
         ? await getDocs(query(collection(db, "activities"), where("accountId", "==", accountId), where("clientVisible", "==", true)))
         : null;
+      const loadedDocuments = documentSnap.docs.map((item) => ({ id: item.id, ...item.data() } as DocumentRecord));
       setProjects(projectSnap.docs.map((item) => ({ id: item.id, ...item.data() } as ProjectRecord)));
       setTasks(taskSnap ? taskSnap.docs.map((item) => ({ id: item.id, ...item.data() } as TaskRecord)) : []);
-      setDocuments(documentSnap.docs.map((item) => ({ id: item.id, ...item.data() } as DocumentRecord)));
+      setDocuments(loadedDocuments);
       setInvoices(invoiceSnap.docs.map((item) => ({ id: item.id, ...item.data() } as InvoiceRecord)));
       setActivities(activitySnap ? activitySnap.docs.map((item) => ({ id: item.id, ...item.data() } as ActivityRecord)).slice(-30).reverse() : []);
+      const requestedDocumentId = new URLSearchParams(window.location.search).get("document");
+      const requestedDocument = requestedDocumentId && loadedDocuments.find((record) => record.id === requestedDocumentId);
+      if (requestedDocument && requestedDocument.needsSignature && requestedDocument.status !== "signed" && requestedDocument.status !== "declined") {
+        window.history.replaceState({}, "", `${window.location.pathname}${window.location.hash}`);
+        openSignature(requestedDocument);
+      }
     } catch {
       setError("Your workspace could not be loaded. The team may still need to deploy the updated Firebase rules.");
     }

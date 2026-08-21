@@ -69,6 +69,8 @@ export type DocumentRecord = {
   recipientIds?: string[];
   version?: number;
   expiresAt?: unknown;
+  lastSharedAt?: unknown;
+  lastSharedBy?: string;
   declinedAt?: unknown;
   declinedBy?: string;
   declineReason?: string;

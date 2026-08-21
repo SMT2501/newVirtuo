@@ -18,6 +18,13 @@ export function pdfBlob(bytes: Uint8Array, type = "application/pdf") {
   return new Blob([copy.buffer], { type });
 }
 
+export async function getPdfPageSize(source: ArrayBuffer, pageNumber = 0) {
+  const pdf = await PDFDocument.load(source);
+  const page = pdf.getPages()[Math.min(Math.max(pageNumber, 0), pdf.getPageCount() - 1)];
+  const { width, height } = page.getSize();
+  return { width, height, pageCount: pdf.getPageCount() };
+}
+
 export async function stampSignature(
   source: ArrayBuffer,
   signerName: string,
