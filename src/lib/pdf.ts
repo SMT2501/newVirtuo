@@ -60,25 +60,25 @@ export async function downloadInvoicePdf(invoice: InvoiceRecord, accountName: st
   const total = invoiceTotal(invoice);
   const lineItems = invoice.lineItems?.length ? invoice.lineItems : [{ description: invoice.description || "Professional services", quantity: 1, unitPrice: total }];
 
-  page.drawText("VIRTUO DESIGNS", { x: 52, y: 790, size: 15, font: bold, color: rgb(0.07, 0.07, 0.07) });
+  page.drawText("VIRTUO DESIGNS", { x: 124, y: 797, size: 15, font: bold, color: rgb(0.07, 0.07, 0.07) });
   const studioLine = "Web Design, Development & Technology Studio";
-  page.drawText(studioLine, { x: 490 - font.widthOfTextAtSize(studioLine, 8), y: 792, size: 8, font, color: rgb(0.42, 0.42, 0.42) });
+  page.drawText(studioLine, { x: 124, y: 780, size: 8, font, color: rgb(0.42, 0.42, 0.42) });
   try {
     const logoResponse = await fetch("/virtuo-designs-letterhead-logo.png");
     if (!logoResponse.ok) throw new Error("Letterhead logo is unavailable.");
     const logo = await pdf.embedPng(await logoResponse.arrayBuffer());
-    page.drawImage(logo, { x: 503, y: 765, width: 40, height: 40 });
+    page.drawImage(logo, { x: 52, y: 758, width: 58, height: 58 });
   } catch {
-    page.drawText("VD", { x: 508, y: 775, size: 18, font: bold, color: rgb(0.07, 0.07, 0.07) });
+    page.drawText("VD", { x: 60, y: 777, size: 22, font: bold, color: rgb(0.07, 0.07, 0.07) });
   }
-  page.drawLine({ start: { x: 52, y: 752 }, end: { x: 543, y: 752 }, thickness: 1.25, color: rgb(0.87, 0.39, 0.05) });
+  page.drawLine({ start: { x: 52, y: 744 }, end: { x: 543, y: 744 }, thickness: 1.25, color: rgb(0.87, 0.39, 0.05) });
 
-  page.drawText("INVOICE", { x: 52, y: 714, size: 10, font: bold, color: rgb(0.87, 0.39, 0.05) });
-  page.drawText(`Invoice ${invoice.number || invoice.id.slice(0, 8).toUpperCase()}`, { x: 52, y: 684, size: 20, font: bold, color: rgb(0.07, 0.07, 0.07) });
-  page.drawText(`Bill to: ${accountName}`, { x: 52, y: 648, size: 11, font });
-  page.drawText(`Due: ${invoice.dueDate || "On receipt"}`, { x: 52, y: 630, size: 10, font, color: rgb(0.42, 0.42, 0.42) });
+  page.drawText("INVOICE", { x: 52, y: 706, size: 10, font: bold, color: rgb(0.87, 0.39, 0.05) });
+  page.drawText(`Invoice ${invoice.number || invoice.id.slice(0, 8).toUpperCase()}`, { x: 52, y: 676, size: 20, font: bold, color: rgb(0.07, 0.07, 0.07) });
+  page.drawText(`Bill to: ${accountName}`, { x: 52, y: 640, size: 11, font });
+  page.drawText(`Due: ${invoice.dueDate || "On receipt"}`, { x: 52, y: 622, size: 10, font, color: rgb(0.42, 0.42, 0.42) });
 
-  let y = 575;
+  let y = 570;
   page.drawRectangle({ x: 52, y: y - 12, width: 491, height: 28, color: rgb(0.97, 0.96, 0.94) });
   page.drawText("Description", { x: 64, y, size: 10, font: bold });
   page.drawText("Qty", { x: 396, y, size: 10, font: bold });
