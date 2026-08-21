@@ -25,8 +25,9 @@ export const analytics = analyticsIsSupported().then((supported) => (
   supported ? getAnalytics(app) : null
 ));
 
-export async function createClientAuthAccount(email: string, password: string) {
-  const credential = await createUserWithEmailAndPassword(provisioningAuth, email, password);
+export async function createClientAuthAccount(email: string) {
+  const generatedPassword = `${crypto.randomUUID()}!aA1`;
+  const credential = await createUserWithEmailAndPassword(provisioningAuth, email, generatedPassword);
   await provisioningAuth.signOut();
   return credential.user;
 }
