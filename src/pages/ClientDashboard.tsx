@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { addDoc, collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from "firebase/firestore";
 import { onAuthStateChanged, signOut, User } from "firebase/auth";
+import { httpsCallable } from "firebase/functions";
 import { getBytes, ref, uploadBytes } from "firebase/storage";
 import {
   Bell,
@@ -22,7 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { Link } from "wouter";
-import { auth, db, storage } from "@/firebase";
+import { auth, db, functions, storage } from "@/firebase";
 import { PortalAuth } from "@/components/portal/PortalAuth";
 import {
   type ActivityRecord,
@@ -38,7 +39,7 @@ import {
   statusTone,
   timestampLabel,
 } from "@/lib/crm";
-import { downloadInvoicePdf, pdfBlob, stampSignature } from "@/lib/pdf";
+import { downloadInvoicePdf } from "@/lib/pdf";
 
 type Tab = "Overview" | "Projects" | "Tasks" | "Documents" | "Invoices" | "Activity";
 const tabs: { label: Tab; icon: typeof LayoutDashboard }[] = [
@@ -146,16 +147,8 @@ export default function ClientDashboard() {
     }
     setSignBusy(true);
     try {
-      const source = await getBytes(ref(storage, signing.storagePath));
-      const bytes = await stampSignature(source, signatureName.trim(), signing.signatureField);
-      const accountId = accountFor(profile, user.uid);
-      const signedRef = ref(storage, `accounts/${accountId}/documents/${signing.id}/signed-${user.uid}.pdf`);
-      const uploaded = await uploadBytes(signedRef, pdfBlob(bytes));
-      await updateDoc(doc(db, "documents", signing.id), {
-        status: "signed", signedAt: serverTimestamp(), signedBy: user.uid, signedByName: signatureName.trim(),
-        signedStoragePath: uploaded.ref.fullPath,
-      });
-      await recordDocumentEvent(signing, "signed");
+      const finalizeSignature = httpsCallable<{ documentId: string; signerName: string }, { signedPath: string }>(functions, "signDocument");
+      await finalizeSignature({ documentId: signing.id, signerName: signatureName.trim() });
       setMessage("Your signed PDF has been saved. You can download it from Documents.");
       setSigning(null);
       setSignatureName("");

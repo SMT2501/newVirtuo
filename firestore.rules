@@ -28,6 +28,23 @@ service cloud.firestore {
         && request.auth.uid in data.recipientIds;
     }
 
+    function projectVisitor(projectId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/projects/$(projectId))
+        && exists(/databases/$(database)/documents/projects/$(projectId)/access/$(request.auth.uid))
+        && get(/databases/$(database)/documents/projects/$(projectId)).data.shareEnabled == true
+        && get(/databases/$(database)/documents/projects/$(projectId)/access/$(request.auth.uid)).data.expiresAt > request.time
+        && get(/databases/$(database)/documents/projects/$(projectId)/access/$(request.auth.uid)).data.shareVersion == get(/databases/$(database)/documents/projects/$(projectId)).data.shareVersion;
+    }
+
+    function projectDocumentVisitor(data) {
+      return signedIn()
+        && data.clientVisible == true
+        && ('projectId' in data)
+        && data.projectId != null
+        && projectVisitor(data.projectId);
+    }
+
     match /users/{userId} {
       allow read: if signedIn() && (request.auth.uid == userId || internalUser());
       allow create: if (adminUser() && request.resource.data.role in ['client', 'staff', 'admin'])
@@ -47,30 +64,21 @@ service cloud.firestore {
     }
 
     match /tasks/{taskId} {
-      allow read: if internalUser() || (resource.data.clientVisible == true && accountMember(resource.data.accountId));
+      allow read: if internalUser()
+        || (resource.data.clientVisible == true && accountMember(resource.data.accountId))
+        || projectDocumentVisitor(resource.data);
       allow create, update, delete: if internalUser();
     }
 
     match /documents/{documentId} {
       allow read: if internalUser()
         || legacyClient(resource.data.ownerId)
-        || (resource.data.clientVisible == true && documentRecipient(resource.data));
+        || (resource.data.clientVisible == true && documentRecipient(resource.data))
+        || projectDocumentVisitor(resource.data);
       allow create: if internalUser()
         || legacyClient(request.resource.data.ownerId)
         || (accountMember(request.resource.data.accountId) && request.resource.data.uploaderId == request.auth.uid);
       allow update: if internalUser()
-        || (
-          documentRecipient(resource.data)
-          && accountMember(resource.data.accountId)
-          && resource.data.status == 'awaiting_signature'
-          && (!('expiresAt' in resource.data) || resource.data.expiresAt == null || resource.data.expiresAt > request.time)
-          && request.resource.data.signedBy == request.auth.uid
-          && request.resource.data.status == 'signed'
-          && request.resource.data.signedStoragePath == 'accounts/' + resource.data.accountId + '/documents/' + documentId + '/signed-' + request.auth.uid + '.pdf'
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'status', 'signedAt', 'signedBy', 'signedByName', 'signedStoragePath'
-          ])
-        )
         || (
           documentRecipient(resource.data)
           && resource.data.status == 'awaiting_signature'
@@ -79,18 +87,21 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'status', 'declinedAt', 'declinedBy', 'declineReason'
           ])
-        );
+        )
+        ;
       allow delete: if internalUser();
     }
 
     match /documentEvents/{eventId} {
-      allow read: if internalUser() || request.auth.uid == resource.data.actorId;
+      allow read: if internalUser()
+        || request.auth.uid == resource.data.actorId
+        || projectVisitor(get(/databases/$(database)/documents/documents/$(resource.data.documentId)).data.projectId);
       allow create: if internalUser()
         || (
           signedIn()
         && request.resource.data.actorId == request.auth.uid
         && request.resource.data.keys().hasOnly(['accountId', 'documentId', 'eventType', 'actorId', 'createdAt'])
-        && request.resource.data.eventType in ['viewed', 'downloaded', 'signed', 'declined']
+          && request.resource.data.eventType in ['viewed', 'downloaded', 'declined']
         && request.resource.data.createdAt == request.time
         && request.resource.data.accountId == get(/databases/$(database)/documents/documents/$(request.resource.data.documentId)).data.accountId
         && get(/databases/$(database)/documents/documents/$(request.resource.data.documentId)).data.clientVisible == true
@@ -109,6 +120,14 @@ service cloud.firestore {
             && get(/databases/$(database)/documents/documents/$(request.resource.data.documentId)).data.declinedBy == request.auth.uid
           )
         )
+        )
+        || (
+          signedIn()
+          && request.resource.data.actorId == request.auth.uid
+          && request.resource.data.keys().hasOnly(['accountId', 'documentId', 'eventType', 'actorId', 'createdAt'])
+          && request.resource.data.eventType in ['viewed', 'downloaded']
+          && request.resource.data.createdAt == request.time
+          && projectVisitor(get(/databases/$(database)/documents/$(request.resource.data.documentId)).data.projectId)
         );
       allow update, delete: if false;
     }
@@ -121,8 +140,14 @@ service cloud.firestore {
     match /projects/{projectId} {
       allow read: if internalUser()
         || legacyClient(resource.data.clientId)
-        || (resource.data.clientVisible == true && accountMember(resource.data.accountId));
+        || (resource.data.clientVisible == true && accountMember(resource.data.accountId))
+        || (resource.data.clientVisible == true && projectVisitor(projectId));
       allow write: if internalUser();
+
+      match /access/{accessId} {
+        allow read: if request.auth.uid == accessId || internalUser();
+        allow write: if false;
+      }
     }
 
     match /invoices/{invoiceId} {
@@ -133,7 +158,9 @@ service cloud.firestore {
     }
 
     match /activities/{activityId} {
-      allow read: if internalUser() || (resource.data.clientVisible == true && accountMember(resource.data.accountId));
+      allow read: if internalUser()
+        || (resource.data.clientVisible == true && accountMember(resource.data.accountId))
+        || projectDocumentVisitor(resource.data);
       allow create: if internalUser()
         || (
           accountMember(request.resource.data.accountId)

@@ -32,18 +32,26 @@ service firebase.storage {
         && firestore.get(/databases/(default)/documents/documents/$(documentId)).data.status == 'awaiting_signature';
     }
 
+    function projectVisitor(projectId) {
+      return signedIn()
+        && firestore.exists(/databases/(default)/documents/projects/$(projectId))
+        && firestore.exists(/databases/(default)/documents/projects/$(projectId)/access/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/projects/$(projectId)).data.shareEnabled == true
+        && firestore.get(/databases/(default)/documents/projects/$(projectId)/access/$(request.auth.uid)).data.expiresAt > request.time
+        && firestore.get(/databases/(default)/documents/projects/$(projectId)/access/$(request.auth.uid)).data.shareVersion == firestore.get(/databases/(default)/documents/projects/$(projectId)).data.shareVersion;
+    }
+
+    function projectDocumentVisitor(accountId, documentId) {
+      return firestore.exists(/databases/(default)/documents/documents/$(documentId))
+        && firestore.get(/databases/(default)/documents/documents/$(documentId)).data.accountId == accountId
+        && firestore.get(/databases/(default)/documents/documents/$(documentId)).data.clientVisible == true
+        && projectVisitor(firestore.get(/databases/(default)/documents/documents/$(documentId)).data.projectId);
+    }
+
     match /accounts/{accountId}/documents/{documentId}/{fileName} {
-      allow read: if internalUser() || documentRecipient(accountId, documentId);
-      allow create: if (
-        internalUser()
-        || (
-          accountMember(accountId)
-          && (
-            fileName.matches('client-.*')
-            || (fileName == 'signed-' + request.auth.uid + '.pdf' && pendingSigner(accountId, documentId))
-          )
-        )
-      )
+      allow read: if internalUser() || documentRecipient(accountId, documentId) || projectDocumentVisitor(accountId, documentId);
+      allow create: if internalUser()
+        || (accountMember(accountId) && fileName.matches('client-.*'))
         && request.resource.size < 20 * 1024 * 1024
         && request.resource.contentType in [
           'application/pdf',

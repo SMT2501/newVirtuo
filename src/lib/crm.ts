@@ -36,6 +36,9 @@ export type ProjectRecord = {
   milestones?: { title: string; dueDate?: string; status?: string }[];
   notes?: string;
   teamMembers?: string[];
+  shareId?: string;
+  shareEnabled?: boolean;
+  shareVersion?: number;
 };
 
 export type TaskRecord = {
@@ -108,6 +111,7 @@ export type ActivityRecord = {
   accountId: string;
   projectId?: string;
   type: string;
+  eventType?: string;
   message: string;
   actorName?: string;
   clientVisible?: boolean;

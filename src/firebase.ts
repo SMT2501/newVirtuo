@@ -3,6 +3,7 @@ import { getAnalytics, isSupported as analyticsIsSupported } from "firebase/anal
 import { createUserWithEmailAndPassword, getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import { getFunctions } from "firebase/functions";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCno6NZH9szwgG9LRX663COQznL9fBbX_M",
@@ -20,6 +21,7 @@ const provisioningApp = initializeApp(firebaseConfig, "client-provisioning");
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+export const functions = getFunctions(app);
 const provisioningAuth = getAuth(provisioningApp);
 export const analytics = analyticsIsSupported().then((supported) => (
   supported ? getAnalytics(app) : null
