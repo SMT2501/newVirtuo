@@ -60,21 +60,35 @@ export async function downloadInvoicePdf(invoice: InvoiceRecord, accountName: st
   const total = invoiceTotal(invoice);
   const lineItems = invoice.lineItems?.length ? invoice.lineItems : [{ description: invoice.description || "Professional services", quantity: 1, unitPrice: total }];
 
-  page.drawText("VIRTUO.", { x: 52, y: 786, size: 26, font: bold, color: rgb(0.1, 0.1, 0.08) });
-  page.drawText("INVOICE", { x: 52, y: 742, size: 11, font: bold, color: rgb(0.75, 0.28, 0.03) });
-  page.drawText(`Invoice ${invoice.number || invoice.id.slice(0, 8).toUpperCase()}`, { x: 52, y: 715, size: 20, font: bold });
-  page.drawText(`Bill to: ${accountName}`, { x: 52, y: 680, size: 11, font });
-  page.drawText(`Due: ${invoice.dueDate || "On receipt"}`, { x: 52, y: 662, size: 10, font, color: rgb(0.35, 0.32, 0.28) });
+  page.drawText("VIRTUO DESIGNS", { x: 52, y: 790, size: 15, font: bold, color: rgb(0.07, 0.07, 0.07) });
+  const studioLine = "Web Design, Development & Technology Studio";
+  page.drawText(studioLine, { x: 490 - font.widthOfTextAtSize(studioLine, 8), y: 792, size: 8, font, color: rgb(0.42, 0.42, 0.42) });
+  try {
+    const logoResponse = await fetch("/virtuo-designs-letterhead-logo.png");
+    if (!logoResponse.ok) throw new Error("Letterhead logo is unavailable.");
+    const logo = await pdf.embedPng(await logoResponse.arrayBuffer());
+    page.drawImage(logo, { x: 503, y: 765, width: 40, height: 40 });
+  } catch {
+    page.drawText("VD", { x: 508, y: 775, size: 18, font: bold, color: rgb(0.07, 0.07, 0.07) });
+  }
+  page.drawLine({ start: { x: 52, y: 752 }, end: { x: 543, y: 752 }, thickness: 1.25, color: rgb(0.87, 0.39, 0.05) });
 
-  let y = 610;
-  page.drawText("Description", { x: 52, y, size: 10, font: bold });
+  page.drawText("INVOICE", { x: 52, y: 714, size: 10, font: bold, color: rgb(0.87, 0.39, 0.05) });
+  page.drawText(`Invoice ${invoice.number || invoice.id.slice(0, 8).toUpperCase()}`, { x: 52, y: 684, size: 20, font: bold, color: rgb(0.07, 0.07, 0.07) });
+  page.drawText(`Bill to: ${accountName}`, { x: 52, y: 648, size: 11, font });
+  page.drawText(`Due: ${invoice.dueDate || "On receipt"}`, { x: 52, y: 630, size: 10, font, color: rgb(0.42, 0.42, 0.42) });
+
+  let y = 575;
+  page.drawRectangle({ x: 52, y: y - 12, width: 491, height: 28, color: rgb(0.97, 0.96, 0.94) });
+  page.drawText("Description", { x: 64, y, size: 10, font: bold });
   page.drawText("Qty", { x: 396, y, size: 10, font: bold });
   page.drawText("Amount", { x: 468, y, size: 10, font: bold });
-  y -= 22;
+  y -= 30;
   for (const item of lineItems) {
     page.drawText(item.description, { x: 52, y, size: 10, font });
     page.drawText(String(item.quantity), { x: 400, y, size: 10, font });
     page.drawText(formatMoney(item.quantity * item.unitPrice, invoice.currency || "ZAR"), { x: 468, y, size: 10, font });
+    page.drawLine({ start: { x: 52, y: y - 9 }, end: { x: 543, y: y - 9 }, thickness: 0.5, color: rgb(0.9, 0.89, 0.86) });
     y -= 26;
   }
 
@@ -82,8 +96,13 @@ export async function downloadInvoicePdf(invoice: InvoiceRecord, accountName: st
   page.drawText(`Subtotal: ${formatMoney(subtotal, invoice.currency || "ZAR")}`, { x: 350, y: 180, size: 10, font });
   if (invoice.discount) page.drawText(`Discount: -${formatMoney(invoice.discount, invoice.currency || "ZAR")}`, { x: 350, y: 162, size: 10, font });
   if (invoice.taxAmount) page.drawText(`Tax: ${formatMoney(invoice.taxAmount, invoice.currency || "ZAR")}`, { x: 350, y: 144, size: 10, font });
-  page.drawText(`Total: ${formatMoney(total, invoice.currency || "ZAR")}`, { x: 350, y: 108, size: 16, font: bold });
-  page.drawText(`Status: ${invoice.status || "draft"}`, { x: 52, y: 72, size: 9, font, color: rgb(0.35, 0.32, 0.28) });
+  page.drawText(`Total: ${formatMoney(total, invoice.currency || "ZAR")}`, { x: 350, y: 116, size: 16, font: bold, color: rgb(0.07, 0.07, 0.07) });
+  page.drawText(`Status: ${invoice.status || "draft"}`, { x: 52, y: 126, size: 9, font, color: rgb(0.42, 0.42, 0.42) });
+  page.drawLine({ start: { x: 52, y: 92 }, end: { x: 543, y: 92 }, thickness: 1.25, color: rgb(0.87, 0.39, 0.05) });
+  const companyLine = "Virtuo Designs (Pty) Ltd  |  CIPC Reg. 2025/014412/07  |  Firlands Minor Rd, Admirals Park, Cape Town, 7135";
+  const contactLine = "virtuodesigns.co.za  |  hello@virtuodesigns.co.za  |  +27 69 771 4283";
+  page.drawText(companyLine, { x: (595 - font.widthOfTextAtSize(companyLine, 7.2)) / 2, y: 75, size: 7.2, font, color: rgb(0.42, 0.42, 0.42) });
+  page.drawText(contactLine, { x: (595 - font.widthOfTextAtSize(contactLine, 7.2)) / 2, y: 61, size: 7.2, font, color: rgb(0.42, 0.42, 0.42) });
 
   download(await pdf.save(), `invoice-${invoice.number || invoice.id}.pdf`);
 }
