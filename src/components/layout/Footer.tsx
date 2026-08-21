@@ -43,7 +43,7 @@ export function Footer() {
           {/* Social links */}
           <div className="flex items-center gap-4">
             <a
-              href="https://www.linkedin.com/company/virtuo-designs"
+              href="https://www.linkedin.com/company/virtuo-designs/?viewAsMember=true"
               target="_blank"
               rel="noopener noreferrer"
               aria-label="Virtuo Designs on LinkedIn"
@@ -52,13 +52,22 @@ export function Footer() {
               <LinkedInIcon />
             </a>
             <a
-              href="https://www.instagram.com/virtuodesigns"
+              href="https://www.instagram.com/virtuodesigns_sa/"
               target="_blank"
               rel="noopener noreferrer"
               aria-label="Virtuo Designs on Instagram"
               className="text-muted-foreground hover:text-accent transition-colors"
             >
               <InstagramIcon />
+            </a>
+            <a
+              href="https://www.facebook.com/profile.php?id=61572761502200"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Virtuo Designs on Facebook"
+              className="text-muted-foreground hover:text-accent transition-colors"
+            >
+              <span className="flex h-5 w-5 items-center justify-center rounded-full border border-current text-xs font-bold">f</span>
             </a>
             <a
               href="https://x.com/virtuodesigns"

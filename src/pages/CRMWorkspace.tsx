@@ -235,7 +235,22 @@ export default function CRMWorkspace() {
 
   async function saveProject(event: FormEvent) {
     event.preventDefault();
-    if (!user || !projectForm.accountId || !projectForm.name.trim()) return;
+    if (!user) {
+      setError("Sign in before creating a project.");
+      return;
+    }
+    if (!authorized) {
+      setError("Project creation is available to internal admin or staff accounts only. Clients can view shared project updates in the portal.");
+      return;
+    }
+    if (!projectForm.accountId) {
+      setError("Choose an account before creating the project.");
+      return;
+    }
+    if (!projectForm.name.trim()) {
+      setError("Enter a project name before saving.");
+      return;
+    }
     setBusy(true);
     try {
       const accountClient = clients.find((client) => client.accountId === projectForm.accountId);
