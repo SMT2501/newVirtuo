@@ -693,5 +693,10 @@ function AccessDenied({ onSignOut }: { onSignOut: () => Promise<void> }) { retur
 function accountName(accounts: AccountRecord[], accountId?: string) { return accounts.find((account) => account.id === accountId)?.name || "Legacy client"; }
 function includesSearch(term: string, ...values: (string | undefined)[]) { const query = term.trim().toLowerCase(); return !query || values.some((value) => value?.toLowerCase().includes(query)); }
 function splitValues(value: string) { return value.split(",").map((item) => item.trim()).filter(Boolean); }
-function parseMilestones(value: string) { return value.split("\n").map((line) => line.trim()).filter(Boolean).map((line) => { const [title, dueDate] = line.split("|").map((item) => item.trim()); return { title, dueDate }; }); }
+function parseMilestones(value: string) {
+  return value.split("\n").map((line) => line.trim()).filter(Boolean).map((line) => {
+    const [title, dueDate] = line.split("|").map((item) => item.trim());
+    return dueDate ? { title, dueDate } : { title };
+  });
+}
 function parseInvoiceLines(value: string, fallbackDescription: string, fallbackAmount: number) { const lines = value.split("\n").map((line) => line.trim()).filter(Boolean).map((line) => { const [description, quantity, unitPrice] = line.split("|").map((item) => item.trim()); return { description: description || fallbackDescription || "Professional services", quantity: Number(quantity || 1), unitPrice: Number(unitPrice || 0) }; }).filter((item) => item.unitPrice >= 0 && item.quantity > 0); return lines.length ? lines : [{ description: fallbackDescription || "Professional services", quantity: 1, unitPrice: fallbackAmount }]; }
