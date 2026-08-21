@@ -1,4 +1,4 @@
-import{j as e,L as t,S as i}from"./index-VEKbW8JN.js";const n=[{title:"1. Who We Are",content:`Virtuo Designs (Pty) Ltd ("Virtuo", "we", "us", "our") is a web development and digital consulting studio based in Cape Town, South Africa. Our website is https://virtuodesigns.co.za.
+import{j as e,L as t,S as i}from"./index-C_Re14JU.js";const n=[{title:"1. Who We Are",content:`Virtuo Designs (Pty) Ltd ("Virtuo", "we", "us", "our") is a web development and digital consulting studio based in Cape Town, South Africa. Our website is https://virtuodesigns.co.za.
 
 For any privacy-related queries, contact us at: hello@virtuodesigns.co.za`},{title:"2. Information We Collect",content:`We collect the following personal information only when you voluntarily provide it:
 

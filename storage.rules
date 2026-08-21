@@ -13,12 +13,53 @@ service firebase.storage {
       return signedIn() && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
+    function accountMember(accountId) {
+      return signedIn() && firestore.exists(/databases/(default)/documents/accounts/$(accountId)/members/$(request.auth.uid));
+    }
+
+    function documentRecipient(accountId, documentId) {
+      return signedIn()
+        && firestore.exists(/databases/(default)/documents/documents/$(documentId))
+        && accountMember(accountId)
+        && firestore.get(/databases/(default)/documents/documents/$(documentId)).data.accountId == accountId
+        && firestore.get(/databases/(default)/documents/documents/$(documentId)).data.clientVisible == true
+        && request.auth.uid in firestore.get(/databases/(default)/documents/documents/$(documentId)).data.recipientIds;
+    }
+
+    function pendingSigner(accountId, documentId) {
+      return documentRecipient(accountId, documentId)
+        && firestore.get(/databases/(default)/documents/documents/$(documentId)).data.accountId == accountId
+        && firestore.get(/databases/(default)/documents/documents/$(documentId)).data.status == 'awaiting_signature';
+    }
+
+    match /accounts/{accountId}/documents/{documentId}/{fileName} {
+      allow read: if internalUser() || documentRecipient(accountId, documentId);
+      allow create: if (
+        internalUser()
+        || (
+          accountMember(accountId)
+          && (
+            fileName.matches('client-.*')
+            || (fileName == 'signed-' + request.auth.uid + '.pdf' && pendingSigner(accountId, documentId))
+          )
+        )
+      )
+        && request.resource.size < 20 * 1024 * 1024
+        && request.resource.contentType in [
+          'application/pdf',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        ];
+      allow update: if internalUser();
+      allow delete: if internalUser();
+    }
+
     match /clients/{userId}/documents/{fileName} {
       allow read: if signedIn() && (request.auth.uid == userId || internalUser());
-      allow write: if signedIn() && (request.auth.uid == userId || adminUser())
+      allow write: if signedIn() && (request.auth.uid == userId || internalUser())
         && request.resource.size < 20 * 1024 * 1024
         && request.resource.contentType in ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
-      allow delete: if signedIn() && (request.auth.uid == userId || adminUser());
+      allow delete: if signedIn() && (request.auth.uid == userId || internalUser());
     }
   }
 }

@@ -1,232 +1,320 @@
-import { useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { addDoc, collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from "firebase/firestore";
+import { onAuthStateChanged, signOut, User } from "firebase/auth";
+import { getBytes, ref, uploadBytes } from "firebase/storage";
 import {
-  Activity,
-  ArrowUpRight,
   Bell,
   BriefcaseBusiness,
   Check,
   CheckCircle2,
-  ChevronRight,
   CircleDollarSign,
+  ClipboardList,
   CloudUpload,
+  Download,
   FileCheck2,
   FileText,
-  Globe2,
   LayoutDashboard,
-  LifeBuoy,
+  LoaderCircle,
   LogOut,
   Menu,
-  MoreHorizontal,
-  Plus,
-  Search,
   Send,
-  Settings,
   ShieldCheck,
-  Sparkles,
-  Users,
   X,
 } from "lucide-react";
 import { Link } from "wouter";
-import { onAuthStateChanged, signOut, User } from "firebase/auth";
-import { addDoc, collection, onSnapshot, query, serverTimestamp, updateDoc, where, doc as firestoreDoc } from "firebase/firestore";
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { auth, db, storage } from "@/firebase";
 import { PortalAuth } from "@/components/portal/PortalAuth";
+import {
+  type ActivityRecord,
+  type ClientRecord,
+  type DocumentRecord,
+  type InvoiceRecord,
+  type ProjectRecord,
+  type TaskRecord,
+  accountFor,
+  formatMoney,
+  invoiceTotal,
+  isPastDue,
+  statusTone,
+  timestampLabel,
+} from "@/lib/crm";
+import { downloadInvoicePdf, pdfBlob, stampSignature } from "@/lib/pdf";
 
-type ProjectRecord = { id: string; name: string; type?: string; progress?: number; status?: string; due?: string; color?: string };
-type DocumentRecord = { id: string; name: string; type?: string; date?: string; status?: string; tone?: "warning" | "success" | "neutral"; needsSignature?: boolean; signedAt?: unknown; downloadUrl?: string };
-type InvoiceRecord = { id: string; number?: string; amount?: number; status?: string; dueDate?: string; description?: string };
-
-const navItems = [
+type Tab = "Overview" | "Projects" | "Tasks" | "Documents" | "Invoices" | "Activity";
+const tabs: { label: Tab; icon: typeof LayoutDashboard }[] = [
   { label: "Overview", icon: LayoutDashboard },
   { label: "Projects", icon: BriefcaseBusiness },
-  { label: "Documents", icon: FileText },
+  { label: "Tasks", icon: ClipboardList },
+  { label: "Documents", icon: FileCheck2 },
   { label: "Invoices", icon: CircleDollarSign },
-  { label: "SEO checks", icon: Globe2 },
+  { label: "Activity", icon: Bell },
 ];
 
-function StatusPill({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "warning" | "success" | "neutral" }) {
-  const tones = {
-    warning: "bg-orange-50 text-orange-700 ring-orange-200",
-    success: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-    neutral: "bg-stone-100 text-stone-600 ring-stone-200",
-  };
-  return <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset ${tones[tone]}`}>{children}</span>;
-}
-
-function ClientDashboard() {
+export default function ClientDashboard() {
   const [user, setUser] = useState<User | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("Overview");
+  const [profile, setProfile] = useState<ClientRecord>();
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<Tab>("Overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [showUpload, setShowUpload] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploadBusy, setUploadBusy] = useState(false);
-  const [uploadMessage, setUploadMessage] = useState("");
-  const [showSigning, setShowSigning] = useState(false);
-  const [signingDocument, setSigningDocument] = useState<DocumentRecord | null>(null);
-  const [signed, setSigned] = useState(false);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
+  const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
-  const [dataMessage, setDataMessage] = useState("");
-  const [seoUrl, setSeoUrl] = useState("");
-  const [seoRan, setSeoRan] = useState(false);
+  const [activities, setActivities] = useState<ActivityRecord[]>([]);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [signing, setSigning] = useState<DocumentRecord | null>(null);
+  const [signatureName, setSignatureName] = useState("");
+  const [consented, setConsented] = useState(false);
+  const [declineReason, setDeclineReason] = useState("");
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [signBusy, setSignBusy] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadTitle, setUploadTitle] = useState("");
+  const [uploadBusy, setUploadBusy] = useState(false);
 
-  useEffect(() => onAuthStateChanged(auth, (nextUser) => {
+  useEffect(() => onAuthStateChanged(auth, async (nextUser) => {
     setUser(nextUser);
-    setAuthLoading(false);
+    if (!nextUser) {
+      setLoading(false);
+      return;
+    }
+    try {
+      const profileSnap = await getDoc(doc(db, "users", nextUser.uid));
+      setProfile(profileSnap.exists() ? ({ id: profileSnap.id, ...profileSnap.data() } as ClientRecord) : { id: nextUser.uid, email: nextUser.email || "" });
+    } catch {
+      setError("We could not load your account profile.");
+    } finally {
+      setLoading(false);
+    }
   }), []);
 
   useEffect(() => {
+    if (user && profile) void loadPortal();
+  }, [user, profile?.accountId]);
+
+  async function loadPortal() {
     if (!user) return;
-    const unsubscribeProjects = onSnapshot(query(collection(db, "projects"), where("clientId", "==", user.uid)), (snapshot) => {
-      setProjects(snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as ProjectRecord)));
-    }, () => setDataMessage("Could not load projects. Check your Firestore rules."));
-    const unsubscribeDocuments = onSnapshot(query(collection(db, "documents"), where("ownerId", "==", user.uid)), (snapshot) => {
-      setDocuments(snapshot.docs.map((item) => {
-        const data = item.data();
-        return { id: item.id, ...data, status: data.status || (data.needsSignature ? "Needs signature" : "Ready to view"), tone: data.signedAt ? "success" : data.needsSignature ? "warning" : "neutral" } as DocumentRecord;
-      }));
-    }, () => setDataMessage("Could not load documents. Check your Firestore rules."));
-    const unsubscribeInvoices = onSnapshot(query(collection(db, "invoices"), where("clientId", "==", user.uid)), (snapshot) => {
-      setInvoices(snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as InvoiceRecord)));
-    }, () => setDataMessage("Could not load invoices. Check your Firestore rules."));
-    return () => { unsubscribeProjects(); unsubscribeDocuments(); unsubscribeInvoices(); };
-  }, [user]);
-
-  if (authLoading) {
-    return <div className="flex min-h-screen items-center justify-center bg-[#f5f4f0] text-sm text-stone-500">Loading secure workspace...</div>;
+    setError("");
+    const accountId = accountFor(profile, user.uid);
+    try {
+      const isLinkedAccount = Boolean(profile?.accountId);
+      const [projectSnap, documentSnap, invoiceSnap] = await Promise.all([
+        isLinkedAccount
+          ? getDocs(query(collection(db, "projects"), where("accountId", "==", accountId), where("clientVisible", "==", true)))
+          : getDocs(query(collection(db, "projects"), where("clientId", "==", accountId))),
+        isLinkedAccount
+          ? getDocs(query(collection(db, "documents"), where("accountId", "==", accountId), where("clientVisible", "==", true), where("recipientIds", "array-contains", user.uid)))
+          : getDocs(query(collection(db, "documents"), where("ownerId", "==", accountId))),
+        isLinkedAccount
+          ? getDocs(query(collection(db, "invoices"), where("accountId", "==", accountId), where("clientVisible", "==", true)))
+          : getDocs(query(collection(db, "invoices"), where("clientId", "==", accountId))),
+      ]);
+      const taskSnap = isLinkedAccount
+        ? await getDocs(query(collection(db, "tasks"), where("accountId", "==", accountId), where("clientVisible", "==", true)))
+        : null;
+      const activitySnap = isLinkedAccount
+        ? await getDocs(query(collection(db, "activities"), where("accountId", "==", accountId), where("clientVisible", "==", true)))
+        : null;
+      setProjects(projectSnap.docs.map((item) => ({ id: item.id, ...item.data() } as ProjectRecord)));
+      setTasks(taskSnap ? taskSnap.docs.map((item) => ({ id: item.id, ...item.data() } as TaskRecord)) : []);
+      setDocuments(documentSnap.docs.map((item) => ({ id: item.id, ...item.data() } as DocumentRecord)));
+      setInvoices(invoiceSnap.docs.map((item) => ({ id: item.id, ...item.data() } as InvoiceRecord)));
+      setActivities(activitySnap ? activitySnap.docs.map((item) => ({ id: item.id, ...item.data() } as ActivityRecord)).slice(-30).reverse() : []);
+    } catch {
+      setError("Your workspace could not be loaded. The team may still need to deploy the updated Firebase rules.");
+    }
   }
 
-  if (!user) {
-    return <PortalAuth />;
+  async function signDocument() {
+    if (!user || !signing || !signatureName.trim() || !consented) return;
+    if (!signing.storagePath || !isPdf(signing)) {
+      setError("Only PDF documents can be signed in the portal. Ask your account team to send a PDF version.");
+      return;
+    }
+    if (isDocumentExpired(signing)) {
+      setError("This signature request has expired. Ask your account team to send an updated version.");
+      return;
+    }
+    setSignBusy(true);
+    try {
+      const source = await getBytes(ref(storage, signing.storagePath));
+      const bytes = await stampSignature(source, signatureName.trim(), signing.signatureField);
+      const accountId = accountFor(profile, user.uid);
+      const signedRef = ref(storage, `accounts/${accountId}/documents/${signing.id}/signed-${user.uid}.pdf`);
+      const uploaded = await uploadBytes(signedRef, pdfBlob(bytes));
+      await updateDoc(doc(db, "documents", signing.id), {
+        status: "signed", signedAt: serverTimestamp(), signedBy: user.uid, signedByName: signatureName.trim(),
+        signedStoragePath: uploaded.ref.fullPath,
+      });
+      await recordDocumentEvent(signing, "signed");
+      setMessage("Your signed PDF has been saved. You can download it from Documents.");
+      setSigning(null);
+      setSignatureName("");
+      setConsented(false);
+      setDeclineReason("");
+      await loadPortal();
+    } catch {
+      setError("We could not finalize the signed PDF. Please check your connection and try again.");
+    } finally {
+      setSignBusy(false);
+    }
   }
 
-  const selectTab = (label: string) => {
-    setActiveTab(label);
-    setSidebarOpen(false);
-  };
+  async function declineDocument() {
+    if (!user || !signing || !declineReason.trim()) return;
+    setSignBusy(true);
+    try {
+      await updateDoc(doc(db, "documents", signing.id), {
+        status: "declined", declinedAt: serverTimestamp(), declinedBy: user.uid, declineReason: declineReason.trim(),
+      });
+      await recordDocumentEvent(signing, "declined");
+      setSigning(null);
+      setDeclineReason("");
+      setMessage("Your request for changes was sent to the Virtuo team.");
+      await loadPortal();
+    } catch {
+      setError("We could not record the request for changes. Please try again.");
+    } finally {
+      setSignBusy(false);
+    }
+  }
 
-  async function uploadDocument() {
-    if (!selectedFile || !user) {
-      setUploadMessage("Choose a file first.");
+  async function recordDocumentEvent(record: DocumentRecord, eventType: "viewed" | "downloaded" | "signed" | "declined") {
+    if (!user || !record.accountId) return;
+    await addDoc(collection(db, "documentEvents"), {
+      accountId: record.accountId, documentId: record.id, eventType, actorId: user.uid, createdAt: serverTimestamp(),
+    });
+  }
+
+  function openSignature(record: DocumentRecord) {
+    if (isDocumentExpired(record)) {
+      setError("This signature request has expired. Ask your account team to send an updated version.");
+      return;
+    }
+    void (async () => {
+      try {
+        const bytes = await getBytes(ref(storage, record.storagePath || ""));
+        setPreviewUrl(URL.createObjectURL(new Blob([bytes], { type: "application/pdf" })));
+        setSigning(record);
+        await recordDocumentEvent(record, "viewed");
+      } catch {
+        setError("This document could not be opened. Please refresh or contact your account team.");
+      }
+    })();
+  }
+
+  async function downloadDocument(record: DocumentRecord) {
+    const path = record.signedStoragePath || record.storagePath;
+    if (!path) return;
+    try {
+      const bytes = await getBytes(ref(storage, path));
+      const url = URL.createObjectURL(new Blob([bytes], { type: record.contentType || "application/octet-stream" }));
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = record.signedStoragePath ? `signed-${record.name}` : record.name;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      await recordDocumentEvent(record, "downloaded");
+    } catch {
+      setError("The document could not be downloaded. Please refresh or contact your account team.");
+    }
+  }
+
+  async function uploadClientFile(event: FormEvent) {
+    event.preventDefault();
+    if (!user || !uploadFile) return;
+    if (uploadFile.size > 20 * 1024 * 1024) {
+      setError("Documents must be smaller than 20 MB.");
       return;
     }
     setUploadBusy(true);
-    setUploadMessage("");
     try {
-      const safeName = selectedFile.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-      const fileRef = ref(storage, `clients/${user.uid}/documents/${Date.now()}-${safeName}`);
-      const snapshot = await uploadBytes(fileRef, selectedFile);
-      const downloadUrl = await getDownloadURL(snapshot.ref);
-      await addDoc(collection(db, "documents"), {
-        ownerId: user.uid,
-        name: selectedFile.name,
-        contentType: selectedFile.type,
-        size: selectedFile.size,
-        storagePath: snapshot.ref.fullPath,
-        downloadUrl,
-        createdAt: serverTimestamp(),
+      const accountId = accountFor(profile, user.uid);
+      const isLinkedAccount = Boolean(profile?.accountId);
+      const recordRef = doc(collection(db, "documents"));
+      const safeName = uploadFile.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+      const fileRef = ref(storage, isLinkedAccount ? `accounts/${accountId}/documents/${recordRef.id}/client-${safeName}` : `clients/${user.uid}/documents/${safeName}`);
+      const uploaded = await uploadBytes(fileRef, uploadFile);
+      await setDoc(recordRef, {
+        ...(isLinkedAccount ? { accountId, recipientIds: [user.uid] } : {}), ownerId: user.uid, uploaderId: user.uid, name: uploadTitle.trim() || uploadFile.name, contentType: uploadFile.type,
+        size: uploadFile.size, storagePath: uploaded.ref.fullPath, clientVisible: true, needsSignature: false,
+        status: "draft", createdAt: serverTimestamp(),
       });
-      setUploadMessage("Uploaded securely.");
-      setSelectedFile(null);
+      if (isLinkedAccount) await addDoc(collection(db, "activities"), {
+        accountId, type: "client_document_uploaded", message: "A client document was uploaded for the Virtuo team.",
+        actorId: user.uid, clientVisible: true, createdAt: serverTimestamp(),
+      });
+      setUploadFile(null);
+      setUploadTitle("");
+      setShowUpload(false);
+      setMessage("Your document was uploaded securely.");
+      await loadPortal();
     } catch {
-      setUploadMessage("Upload failed. Check Firebase Storage rules and try again.");
+      setError("The document could not be uploaded. Please try again or contact your project team.");
     } finally {
       setUploadBusy(false);
     }
   }
 
-  async function signDocument() {
-    if (!signingDocument || !user) return;
-    try {
-      await updateDoc(firestoreDoc(db, "documents", signingDocument.id), {
-        status: "Signed",
-        signedAt: serverTimestamp(),
-        signedBy: user.uid,
-      });
-      setSigned(true);
-      setShowSigning(false);
-      setSigningDocument(null);
-    } catch {
-      setDataMessage("Signature could not be saved. Deploy the latest Firestore rules and try again.");
-    }
-  }
+  const outstanding = invoices.filter((invoice) => !["paid", "void"].includes((invoice.status || "").toLowerCase())).reduce((sum, invoice) => sum + invoiceTotal(invoice), 0);
+  const pendingSignature = documents.find((record) => record.needsSignature && !record.signedAt && record.status !== "signed" && record.status !== "declined" && !isDocumentExpired(record));
+  const openTasks = tasks.filter((task) => task.status !== "done");
+  const accountName = profile?.name || profile?.email?.split("@")[0] || "Client";
+
+  if (loading) return <Loading />;
+  if (!user) return <PortalAuth />;
 
   return (
-    <div className="min-h-screen bg-[#f5f4f0] text-[#171714]">
-      <aside className={`fixed inset-y-0 left-0 z-40 flex w-62 flex-col border-r border-stone-200 bg-[#fbfaf7] px-5 py-6 transition-transform lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
-        <div className="flex items-center justify-between px-2">
-          <Link href="/" className="font-serif text-[22px] font-bold tracking-[-0.04em]">VIRTUO<span className="text-orange-600">.</span></Link>
-          <button aria-label="Close navigation" onClick={() => setSidebarOpen(false)} className="rounded-md p-1 text-stone-500 lg:hidden"><X size={18} /></button>
-        </div>
-        <div className="mt-11 px-2 text-[10px] font-bold uppercase tracking-[0.18em] text-stone-400">Workspace</div>
-        <nav className="mt-3 space-y-1">
-          {navItems.map(({ label, icon: Icon }) => (
-            <button key={label} onClick={() => selectTab(label)} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors ${activeTab === label ? "bg-[#171714] text-white" : "text-stone-600 hover:bg-stone-100 hover:text-stone-950"}`}>
-              <Icon size={17} strokeWidth={activeTab === label ? 2.3 : 1.8} />{label}
-              {label === "Documents" && <span className="ml-auto rounded-full bg-orange-100 px-1.5 text-[10px] font-bold text-orange-700">1</span>}
-            </button>
-          ))}
-        </nav>
-        <div className="mt-auto space-y-1">
-          <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-stone-600 hover:bg-stone-100"><LifeBuoy size={17} />Support</button>
-          <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-stone-600 hover:bg-stone-100"><Settings size={17} />Settings</button>
-          <div className="mt-4 flex items-center gap-3 border-t border-stone-200 px-2 pt-5">
-            <div className="flex size-9 items-center justify-center rounded-full bg-orange-100 text-xs font-bold text-orange-800">{(user.email?.slice(0, 2) || "VD").toUpperCase()}</div>
-            <div className="min-w-0"><div className="truncate text-sm font-semibold">Client account</div><div className="truncate text-xs text-stone-500">{user.email}</div></div>
-            <button aria-label="Sign out" onClick={() => signOut(auth)} className="ml-auto rounded-md p-1 text-stone-400 hover:bg-stone-100 hover:text-stone-800"><LogOut size={16} /></button>
-          </div>
-        </div>
+    <div className="min-h-screen bg-[#f6f5f1] text-[#1a1a17]">
+      <aside className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-stone-200 bg-[#1b211d] px-4 py-5 text-stone-200 transition-transform lg:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+        <div className="flex items-center justify-between px-3"><Link href="/" className="font-serif text-2xl font-bold text-white">VIRTUO<span className="text-orange-400">.</span></Link><button className="lg:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close navigation"><X size={18} /></button></div>
+        <div className="mt-9 px-3 text-[10px] font-bold uppercase tracking-[.2em] text-stone-500">Client workspace</div>
+        <nav className="mt-3 space-y-1">{tabs.map(({ label, icon: Icon }) => <button key={label} onClick={() => { setTab(label); setSidebarOpen(false); }} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-semibold ${tab === label ? "bg-[#d96b22] text-white" : "text-stone-300 hover:bg-white/8 hover:text-white"}`}><Icon size={17} />{label}{label === "Documents" && pendingSignature && <span className="ml-auto rounded-full bg-white px-1.5 py-0.5 text-[10px] font-bold text-orange-700">1</span>}</button>)}</nav>
+        <div className="mt-auto rounded-xl border border-white/10 bg-white/5 p-3"><div className="truncate text-sm font-semibold text-white">{accountName}</div><div className="mt-1 truncate text-[11px] text-stone-400">{user.email}</div><button onClick={() => signOut(auth)} className="mt-3 flex items-center gap-2 text-xs font-bold text-orange-300"><LogOut size={14} />Sign out</button></div>
       </aside>
-      {sidebarOpen && <button aria-label="Close navigation overlay" onClick={() => setSidebarOpen(false)} className="fixed inset-0 z-30 bg-black/20 lg:hidden" />}
+      {sidebarOpen && <button className="fixed inset-0 z-30 bg-black/40 lg:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close navigation overlay" />}
 
-      <main className="lg:pl-62">
-        <header className="sticky top-0 z-20 flex h-19 items-center justify-between border-b border-stone-200 bg-[#f5f4f0]/95 px-5 backdrop-blur-md sm:px-8 lg:px-10">
-          <div className="flex items-center gap-3"><button aria-label="Open navigation" onClick={() => setSidebarOpen(true)} className="rounded-md p-2 text-stone-600 hover:bg-stone-200 lg:hidden"><Menu size={20} /></button><div className="text-sm text-stone-500"><span className="hidden sm:inline">Workspace / </span><span className="font-semibold text-stone-900">{activeTab}</span></div></div>
-          <div className="flex items-center gap-2 sm:gap-4"><button aria-label="Search" className="rounded-full p-2 text-stone-500 hover:bg-stone-200"><Search size={18} /></button><button aria-label="Notifications" className="relative rounded-full p-2 text-stone-500 hover:bg-stone-200"><Bell size={18} /><span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-orange-500" /></button><div className="hidden h-6 w-px bg-stone-200 sm:block" /><span className="hidden text-xs font-semibold text-stone-500 sm:inline">CLIENT PORTAL</span></div>
-        </header>
+      <main className="lg:pl-64">
+        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-stone-200 bg-[#f6f5f1]/95 px-5 py-4 backdrop-blur sm:px-8"><div className="flex items-center gap-3"><button onClick={() => setSidebarOpen(true)} className="rounded-lg border border-stone-200 bg-white p-2 lg:hidden" aria-label="Open navigation"><Menu size={18} /></button><div><div className="text-[10px] font-bold uppercase tracking-[.18em] text-orange-700">Client portal</div><div className="mt-0.5 text-sm font-semibold text-stone-700">{tab}</div></div></div><div className="flex items-center gap-3"><button onClick={() => void loadPortal()} className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-xs font-bold text-stone-600">Refresh</button><div className="hidden text-right sm:block"><div className="text-xs font-bold">{accountName}</div><div className="text-[11px] text-stone-500">Secure workspace</div></div></div></header>
 
-        <div className="mx-auto max-w-360 px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
-          {dataMessage && <div className="mb-6 rounded-lg bg-orange-50 p-3 text-xs text-orange-800">{dataMessage}</div>}
-          {activeTab === "Overview" && <Overview projects={projects} documents={documents} invoices={invoices} onUpload={() => setShowUpload(true)} onSign={(document) => { setSigningDocument(document); setShowSigning(true); }} signed={signed} />}
-          {activeTab === "Projects" && <Projects projects={projects} />}
-          {activeTab === "Documents" && <Documents documents={documents} onUpload={() => setShowUpload(true)} onSign={(document) => { setSigningDocument(document); setShowSigning(true); }} signed={signed} />}
-          {activeTab === "Invoices" && <Invoices invoices={invoices} />}
-          {activeTab === "SEO checks" && <SeoChecks seoUrl={seoUrl} setSeoUrl={setSeoUrl} seoRan={seoRan} setSeoRan={setSeoRan} />}
+        <div className="mx-auto max-w-7xl px-5 py-7 sm:px-8 lg:py-9">
+          {error && <Banner tone="error" text={error} onDismiss={() => setError("")} />}
+          {message && <Banner tone="success" text={message} onDismiss={() => setMessage("")} />}
+          {tab === "Overview" && <PortalOverview projects={projects} openTasks={openTasks} documents={documents} outstanding={outstanding} pendingSignature={pendingSignature} onTab={setTab} onSign={openSignature} />}
+          {tab === "Projects" && <Projects projects={projects} />}
+          {tab === "Tasks" && <Tasks tasks={tasks} projects={projects} />}
+          {tab === "Documents" && <Documents documents={documents} onSign={openSignature} onDownload={(record) => void downloadDocument(record)} onUpload={() => setShowUpload(true)} />}
+          {tab === "Invoices" && <Invoices invoices={invoices} accountName={accountName} />}
+          {tab === "Activity" && <Activity activities={activities} />}
         </div>
       </main>
 
-      {showUpload && <Modal title="Upload a document" onClose={() => setShowUpload(false)}><label className="block cursor-pointer rounded-xl border-2 border-dashed border-stone-200 bg-stone-50 px-5 py-10 text-center hover:border-orange-400"><CloudUpload className="mx-auto text-orange-600" size={30} /><p className="mt-3 text-sm font-semibold">Choose a file to upload</p><p className="mt-1 text-xs text-stone-500">PDF, DOCX or XLSX up to 20MB</p><input type="file" accept=".pdf,.docx,.xlsx" onChange={(event) => setSelectedFile(event.target.files?.[0] || null)} className="sr-only" /></label>{selectedFile && <p className="mt-3 truncate text-xs font-semibold text-stone-600">Selected: {selectedFile.name}</p>}{uploadMessage && <p className="mt-3 text-xs text-orange-700">{uploadMessage}</p>}<button disabled={uploadBusy} onClick={uploadDocument} className="mt-5 w-full rounded-lg bg-[#171714] py-3 text-sm font-semibold text-white disabled:opacity-60">{uploadBusy ? "Uploading..." : "Upload document"}</button></Modal>}
-      {showSigning && <Modal title="Sign document" onClose={() => setShowSigning(false)}><div className="rounded-lg border border-stone-200 bg-stone-50 p-4"><div className="flex items-center gap-3"><FileCheck2 className="text-orange-600" size={22} /><div><div className="text-sm font-semibold">{signingDocument?.name}</div><div className="text-xs text-stone-500">Review the document before signing</div></div></div><div className="mt-5 h-32 rounded-md border border-stone-200 bg-white p-4 text-center text-xs text-stone-400"><span className="relative top-10">Signature confirmation</span></div></div><button onClick={signDocument} className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-orange-600 py-3 text-sm font-semibold text-white hover:bg-orange-700"><Check size={17} /> Sign securely</button><p className="mt-3 flex items-center justify-center gap-1.5 text-center text-[11px] text-stone-500"><ShieldCheck size={13} /> Your signature is encrypted and audit logged</p></Modal>}
+      {signing && <SignatureModal document={signing} previewUrl={previewUrl} name={signatureName} setName={setSignatureName} consented={consented} setConsented={setConsented} declineReason={declineReason} setDeclineReason={setDeclineReason} busy={signBusy} onClose={() => { URL.revokeObjectURL(previewUrl); setPreviewUrl(""); setSigning(null); }} onSign={signDocument} onDecline={declineDocument} />}
+      {showUpload && <UploadModal file={uploadFile} setFile={setUploadFile} title={uploadTitle} setTitle={setUploadTitle} busy={uploadBusy} onClose={() => setShowUpload(false)} onSubmit={uploadClientFile} />}
     </div>
   );
 }
 
-function PageHeading({ eyebrow, title, detail, action }: { eyebrow: string; title: string; detail: string; action?: React.ReactNode }) {
-  return <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div><div className="text-[10px] font-bold uppercase tracking-[0.2em] text-orange-600">{eyebrow}</div><h1 className="mt-2 font-serif text-4xl font-bold tracking-[-0.045em] sm:text-5xl">{title}</h1><p className="mt-2 max-w-xl text-sm text-stone-500">{detail}</p></div>{action}</div>;
+function PortalOverview({ projects, openTasks, documents, outstanding, pendingSignature, onTab, onSign }: { projects: ProjectRecord[]; openTasks: TaskRecord[]; documents: DocumentRecord[]; outstanding: number; pendingSignature?: DocumentRecord; onTab: (value: Tab) => void; onSign: (document: DocumentRecord) => void }) {
+  return <div className="space-y-7"><Heading eyebrow="Your account" title="A calm view of the work ahead." detail="Projects, approvals, documents, and invoices shared by your Virtuo team." /><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Metric icon={BriefcaseBusiness} label="Active projects" value={String(projects.length)} detail="Across your account" /><Metric icon={ClipboardList} label="Open tasks" value={String(openTasks.length)} detail={openTasks.some((task) => isPastDue(task.dueDate)) ? "Some need attention" : "Nothing overdue"} tone="orange" /><Metric icon={FileCheck2} label="Documents" value={String(documents.length)} detail={pendingSignature ? "A signature is waiting" : "All caught up"} tone={pendingSignature ? "orange" : "green"} /><Metric icon={CircleDollarSign} label="Balance due" value={formatMoney(outstanding)} detail="Open invoices only" tone="orange" /></div><div className="grid gap-5 xl:grid-cols-[1.2fr_.8fr]"><section className="rounded-xl border border-stone-200 bg-white p-5"><div className="flex items-center justify-between"><div><h2 className="font-serif text-2xl font-bold">Project pulse</h2><p className="mt-1 text-xs text-stone-500">Delivery shared with your team.</p></div><button onClick={() => onTab("Projects")} className="text-xs font-bold text-orange-700">View all</button></div><div className="mt-5 space-y-5">{projects.length ? projects.slice(0, 4).map((project) => <div key={project.id}><div className="flex justify-between gap-3"><div><strong className="text-sm">{project.name}</strong><p className="mt-1 text-xs text-stone-500">{project.type || "Project"} · {project.status || "In progress"}</p></div><span className="text-xs font-bold">{project.progress || 0}%</span></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-stone-100"><div className="h-full rounded-full bg-orange-500" style={{ width: `${project.progress || 0}%` }} /></div></div>) : <Empty label="Your projects will appear here once they are shared." />}</div></section><section className={`rounded-xl border p-5 ${pendingSignature ? "border-orange-200 bg-orange-50" : "border-emerald-200 bg-emerald-50"}`}>{pendingSignature ? <><FileCheck2 className="text-orange-700" size={22} /><div className="mt-5 text-[10px] font-bold uppercase tracking-[.18em] text-orange-700">Action required</div><h2 className="mt-2 font-serif text-2xl font-bold">{pendingSignature.name}</h2><p className="mt-2 text-sm leading-6 text-stone-600">Review the PDF, confirm your consent, and sign securely in the portal.</p><button onClick={() => onSign(pendingSignature)} className="mt-5 inline-flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-3 text-xs font-bold text-white"><Check size={15} />Review and sign</button></> : <><ShieldCheck className="text-emerald-700" size={22} /><h2 className="mt-5 font-serif text-2xl font-bold">You are up to date.</h2><p className="mt-2 text-sm leading-6 text-stone-600">New document requests, task updates, and invoices will appear here when your team shares them.</p></>}</section></div></div>;
 }
 
-function Overview({ projects, documents, invoices, onUpload, onSign, signed }: { projects: ProjectRecord[]; documents: DocumentRecord[]; invoices: InvoiceRecord[]; onUpload: () => void; onSign: (document: DocumentRecord) => void; signed: boolean }) {
-  const pendingDocument = documents.find((document) => document.needsSignature && !document.signedAt);
-  const outstanding = invoices.filter((invoice) => invoice.status !== "Paid").reduce((sum, invoice) => sum + (invoice.amount || 0), 0);
-  return <div className="space-y-8"><PageHeading eyebrow="Client workspace" title="Your project pulse." detail="Live information shared by your Virtuo Designs team." action={<button onClick={onUpload} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#171714] px-4 py-3 text-sm font-semibold text-white hover:bg-stone-700"><Plus size={16} /> Add document</button>} />
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Metric icon={BriefcaseBusiness} label="Active projects" value={String(projects.length)} note="Live from your workspace" /><Metric icon={CircleDollarSign} label="Balance due" value={`R ${outstanding.toLocaleString()}`} note="From open invoices" accent /><Metric icon={FileText} label="Open documents" value={String(documents.filter((document) => document.needsSignature && !document.signedAt).length)} note={pendingDocument ? "Needs your signature" : "All caught up"} /><Metric icon={Activity} label="Project health" value={projects.length ? `${Math.round(projects.reduce((sum, project) => sum + (project.progress || 0), 0) / projects.length)}%` : "-"} note="Based on current projects" /></div>
-    <div className="grid gap-6 xl:grid-cols-[1.45fr_1fr]"><section className="rounded-xl border border-stone-200 bg-white p-5 sm:p-6"><div className="flex items-center justify-between"><div><h2 className="font-serif text-2xl font-bold tracking-[-0.03em]">Your projects</h2><p className="mt-1 text-xs text-stone-500">Progress across active engagements</p></div></div><div className="mt-6 space-y-5">{projects.length ? projects.map((project) => <ProjectRow key={project.id} {...project} />) : <EmptyState label="Projects will appear here once your team adds them." />}</div></section><section className="rounded-xl border border-stone-200 bg-[#e9f0e8] p-5 sm:p-6"><div className="flex items-start justify-between"><div><div className="flex size-10 items-center justify-center rounded-lg bg-white text-emerald-700"><Sparkles size={19} /></div><h2 className="mt-5 font-serif text-2xl font-bold tracking-[-0.03em]">SEO health check</h2><p className="mt-2 text-sm leading-6 text-stone-600">Run a live check from the SEO checks tab.</p></div><span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-emerald-700">LIVE</span></div></section></div>
-    <section className="rounded-xl border border-stone-200 bg-white p-5 sm:p-6"><div className="flex items-center justify-between"><div><h2 className="font-serif text-2xl font-bold tracking-[-0.03em]">Needs your attention</h2><p className="mt-1 text-xs text-stone-500">Actions based on your live records</p></div><ShieldCheck className="text-emerald-600" size={21} /></div><div className="mt-5 grid gap-3 md:grid-cols-2">{pendingDocument && <Attention icon={FileCheck2} title={pendingDocument.name} detail="Document awaiting signature" button="Review & sign" onClick={() => onSign(pendingDocument)} />}{!pendingDocument && <EmptyState label={signed ? "Your latest signature is saved." : "Nothing needs your attention right now."} />}</div></section>
-  </div>;
-}
+function Projects({ projects }: { projects: ProjectRecord[] }) { return <div className="space-y-6"><Heading eyebrow="Delivery" title="Projects" detail="Progress, key dates, and the work currently being delivered for your account." /><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{projects.length ? projects.map((project) => <article key={project.id} className="rounded-xl border border-stone-200 bg-white p-5"><div className="flex justify-between"><Status status={project.status || "In progress"} /><span className="text-xs font-bold text-stone-500">{project.progress || 0}%</span></div><h2 className="mt-6 font-serif text-2xl font-bold">{project.name}</h2><p className="mt-1 text-sm text-stone-500">{project.type || "Project"}</p><div className="mt-7 h-2 overflow-hidden rounded-full bg-stone-100"><div className="h-full rounded-full bg-orange-500" style={{ width: `${project.progress || 0}%` }} /></div><div className="mt-4 flex justify-between text-xs text-stone-500"><span>Next milestone</span><strong className="text-stone-800">{project.dueDate || project.due || "To be confirmed"}</strong></div></article>) : <Empty label="No projects have been shared with your account yet." />}</div></div>; }
+function Tasks({ tasks, projects }: { tasks: TaskRecord[]; projects: ProjectRecord[] }) { return <div className="space-y-6"><Heading eyebrow="Your actions" title="Tasks" detail="The items your team has made visible to keep delivery moving." /><section className="overflow-hidden rounded-xl border border-stone-200 bg-white">{tasks.length ? tasks.map((task) => <div key={task.id} className="flex items-center gap-3 border-b border-stone-100 p-4 last:border-0"><div className={`flex size-9 shrink-0 items-center justify-center rounded-full ${task.status === "done" ? "bg-emerald-100 text-emerald-700" : "bg-stone-100 text-stone-500"}`}><CheckCircle2 size={17} /></div><div className="min-w-0 flex-1"><strong className="text-sm">{task.title}</strong><p className="mt-1 text-xs text-stone-500">{projects.find((project) => project.id === task.projectId)?.name || "Account task"} · due {task.dueDate || "to be confirmed"}</p></div><Status status={task.status || "todo"} /></div>) : <Empty label="No client-visible tasks are open." />}</section></div>; }
+function Documents({ documents, onSign, onDownload, onUpload }: { documents: DocumentRecord[]; onSign: (document: DocumentRecord) => void; onDownload: (document: DocumentRecord) => void; onUpload: () => void }) { return <div className="space-y-6"><Heading eyebrow="Secure files" title="Documents" detail="Download shared files, sign PDFs, and send a file back to your account team." action={<button onClick={onUpload} className="primary"><CloudUpload size={16} />Upload document</button>} /><section className="overflow-hidden rounded-xl border border-stone-200 bg-white">{documents.length ? documents.map((record) => <div key={record.id} className="flex flex-col gap-3 border-b border-stone-100 p-4 last:border-0 sm:flex-row sm:items-center"><div className="flex min-w-0 flex-1 items-center gap-3"><div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-orange-700"><FileText size={18} /></div><div className="min-w-0"><strong className="block truncate text-sm">{record.name}</strong><p className="mt-1 text-xs text-stone-500">{record.needsSignature ? "Signature request" : "Shared document"} · {isDocumentExpired(record) ? "Expired" : record.signedAt ? "Completed" : `Version ${record.version || 1}`}</p></div></div><div className="flex items-center gap-2"><Status status={isDocumentExpired(record) && record.status === "awaiting_signature" ? "expired" : record.status || "draft"} />{record.needsSignature && !record.signedAt && record.status !== "declined" && !isDocumentExpired(record) && <button onClick={() => onSign(record)} className="rounded-lg bg-orange-600 px-3 py-2 text-xs font-bold text-white">Review & sign</button>}<button onClick={() => onDownload(record)} className="rounded-lg border border-stone-200 p-2 text-stone-600" aria-label={`Download ${record.name}`}><Download size={16} /></button></div></div>) : <Empty label="No documents have been shared with your account yet." />}</section></div>; }
+function Invoices({ invoices, accountName }: { invoices: InvoiceRecord[]; accountName: string }) { const open = invoices.filter((invoice) => !["paid", "void"].includes((invoice.status || "").toLowerCase())); return <div className="space-y-6"><Heading eyebrow="Billing" title="Invoices" detail="Review your invoice history, payment status, and downloadable invoice records." /><div className="grid gap-4 sm:grid-cols-3"><Metric icon={CircleDollarSign} label="Outstanding" value={formatMoney(open.reduce((sum, invoice) => sum + invoiceTotal(invoice), 0))} detail={`${open.length} open invoice(s)`} tone="orange" /><Metric icon={CheckCircle2} label="Paid" value={String(invoices.filter((invoice) => invoice.status === "paid").length)} detail="Marked as paid" tone="green" /><Metric icon={FileText} label="Total invoices" value={String(invoices.length)} detail="Available to your account" /></div><section className="overflow-hidden rounded-xl border border-stone-200 bg-white">{invoices.length ? invoices.map((invoice) => <div key={invoice.id} className="flex items-center gap-3 border-b border-stone-100 p-4 last:border-0"><div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-stone-100 text-stone-600"><FileText size={17} /></div><div className="min-w-0 flex-1"><strong className="text-sm">{invoice.number || `INV-${invoice.id.slice(0, 6).toUpperCase()}`}</strong><p className="mt-1 text-xs text-stone-500">{invoice.description || "Professional services"} · due {invoice.dueDate || "on receipt"}</p></div><div className="text-right"><strong className="text-sm">{formatMoney(invoiceTotal(invoice), invoice.currency || "ZAR")}</strong><div className="mt-1"><Status status={invoice.status || "draft"} /></div></div><button onClick={() => downloadInvoicePdf(invoice, accountName)} className="rounded-lg border border-stone-200 p-2 text-stone-600" aria-label="Download invoice"><Download size={16} /></button></div>) : <Empty label="No invoices have been shared with your account yet." />}</section></div>; }
+function Activity({ activities }: { activities: ActivityRecord[] }) { return <div className="space-y-6"><Heading eyebrow="Shared history" title="Activity" detail="A timeline of the project events, files, approvals, and billing updates visible to your account." /><section className="overflow-hidden rounded-xl border border-stone-200 bg-white">{activities.length ? activities.map((activity) => <div key={activity.id} className="flex gap-3 border-b border-stone-100 p-4 last:border-0"><div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700"><Bell size={15} /></div><div><p className="text-sm font-medium text-stone-700">{activity.message}</p><p className="mt-1 text-xs text-stone-400">{activity.type === "client_document_uploaded" ? "Client" : activity.actorName || "Virtuo team"} · {timestampLabel(activity.createdAt)}</p></div></div>) : <Empty label="Shared activity will appear here as your work progresses." />}</section></div>; }
 
-function Metric({ icon: Icon, label, value, note, accent }: { icon: typeof Activity; label: string; value: string; note: string; accent?: boolean }) { return <div className="rounded-xl border border-stone-200 bg-white p-5"><div className="flex items-center justify-between"><span className="text-xs font-medium text-stone-500">{label}</span><Icon size={17} className={accent ? "text-orange-600" : "text-stone-400"} /></div><div className="mt-4 font-serif text-3xl font-bold tracking-[-0.04em]">{value}</div><div className={`mt-2 text-xs ${accent ? "font-semibold text-orange-700" : "text-stone-500"}`}>{note}</div></div>; }
-function ProjectRow({ name, type, progress = 0, status = "Active", due = "", color = "bg-orange-500" }: ProjectRecord) { return <div><div className="flex items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-3"><span className={`size-2.5 shrink-0 rounded-full ${color}`} /><div className="min-w-0"><div className="truncate text-sm font-semibold">{name}</div><div className="mt-0.5 text-xs text-stone-500">{type || "Project"}</div></div></div><div className="hidden text-right sm:block"><div className="text-xs font-semibold">{progress}%</div><div className="mt-0.5 text-[11px] text-stone-400">{due}</div></div></div><div className="mt-3 h-1.5 overflow-hidden rounded-full bg-stone-100"><div className={`h-full rounded-full ${color}`} style={{ width: `${progress}%` }} /></div><div className="mt-2 sm:hidden"><StatusPill>{status}</StatusPill></div></div>; }
-function Attention({ icon: Icon, title, detail, button, onClick }: { icon: typeof Activity; title: string; detail: string; button: string; onClick?: () => void }) { return <div className="flex items-center gap-3 rounded-lg border border-stone-200 p-3.5"><div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-orange-600"><Icon size={17} /></div><div className="min-w-0"><div className="truncate text-sm font-semibold">{title}</div><div className="mt-0.5 truncate text-xs text-stone-500">{detail}</div></div><button onClick={onClick} className="ml-auto shrink-0 rounded-md border border-stone-200 px-2.5 py-1.5 text-[11px] font-bold hover:bg-stone-50">{button}</button></div>; }
-function EmptyState({ label }: { label: string }) { return <p className="rounded-lg border border-dashed border-stone-200 p-5 text-sm text-stone-500">{label}</p>; }
-
-function Projects({ projects }: { projects: ProjectRecord[] }) { return <div className="space-y-8"><PageHeading eyebrow="Workspace" title="Projects" detail="Track delivery, milestones and feedback across your active work." /><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{projects.length ? projects.map((project) => <div key={project.id} className="rounded-xl border border-stone-200 bg-white p-5"><div className="flex items-start justify-between"><span className={`size-3 rounded-full ${project.color || "bg-orange-500"}`} /><StatusPill>{project.status || "Active"}</StatusPill></div><h2 className="mt-7 font-serif text-2xl font-bold">{project.name}</h2><p className="mt-1 text-sm text-stone-500">{project.type || "Project"}</p><div className="mt-8 flex justify-between text-xs"><span className="text-stone-500">Overall progress</span><strong>{project.progress || 0}%</strong></div><div className="mt-2 h-2 rounded-full bg-stone-100"><div className={`h-full rounded-full ${project.color || "bg-orange-500"}`} style={{ width: `${project.progress || 0}%` }} /></div><div className="mt-5 flex items-center justify-between border-t border-stone-100 pt-4 text-xs text-stone-500"><span>Next milestone</span><span className="font-semibold text-stone-800">{project.due || "To be scheduled"}</span></div></div>) : <EmptyState label="Projects will appear here once your Virtuo team adds them." />}</div></div>; }
-function Documents({ documents, onUpload, onSign, signed }: { documents: DocumentRecord[]; onUpload: () => void; onSign: (document: DocumentRecord) => void; signed: boolean }) { return <div className="space-y-8"><PageHeading eyebrow="Workspace" title="Documents" detail="A secure home for proposals, agreements, reports and handover files." action={<button onClick={onUpload} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#171714] px-4 py-3 text-sm font-semibold text-white"><CloudUpload size={16} /> Upload</button>} /><div className="overflow-hidden rounded-xl border border-stone-200 bg-white"><div className="border-b border-stone-100 p-4 text-sm font-semibold">All documents <span className="ml-1 text-xs font-normal text-stone-400">{documents.length} files</span></div><div className="divide-y divide-stone-100">{documents.length ? documents.map((document) => <div key={document.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center"><div className="flex min-w-0 items-center gap-3"><div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-orange-600"><FileText size={18} /></div><div className="min-w-0"><div className="truncate text-sm font-semibold">{document.name}</div><div className="mt-1 text-xs text-stone-500">{document.type || "Document"} · {document.date || "Recently added"}</div></div></div><div className="flex items-center gap-3 sm:ml-auto">{document.signedAt || signed ? <StatusPill tone="success"><CheckCircle2 size={13} className="mr-1" /> Signed</StatusPill> : <StatusPill tone={document.tone || "neutral"}>{document.status || "Ready to view"}</StatusPill>}{document.needsSignature && !document.signedAt && <button onClick={() => onSign(document)} className="rounded-md bg-orange-600 px-3 py-2 text-xs font-bold text-white">Review & sign</button>}<button aria-label={`More actions for ${document.name}`} className="p-1 text-stone-400"><MoreHorizontal size={17} /></button></div></div>) : <div className="p-12 text-center text-sm text-stone-500">No documents have been shared with this account yet.</div>}</div></div><div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800"><ShieldCheck size={19} /><span><strong>Private by default.</strong> Only people invited to this workspace can view these files.</span></div></div>; }
-function Invoices({ invoices }: { invoices: InvoiceRecord[] }) { const outstanding = invoices.filter((invoice) => invoice.status !== "Paid"); return <div className="space-y-8"><PageHeading eyebrow="Workspace" title="Invoices" detail="Keep your account up to date and download receipts when you need them." /><div className="grid gap-4 sm:grid-cols-3"><Metric icon={CircleDollarSign} label="Outstanding" value={`R ${outstanding.reduce((sum, invoice) => sum + (invoice.amount || 0), 0).toLocaleString()}`} note={`${outstanding.length} invoice${outstanding.length === 1 ? "" : "s"}`} accent /><Metric icon={CheckCircle2} label="Paid invoices" value={String(invoices.filter((invoice) => invoice.status === "Paid").length)} note="From your workspace" /><Metric icon={BriefcaseBusiness} label="Total invoices" value={String(invoices.length)} note="Live from Firestore" /></div><div className="overflow-hidden rounded-xl border border-stone-200 bg-white"><div className="border-b border-stone-100 p-5 text-sm font-semibold">Invoice history</div>{invoices.length ? invoices.map((invoice) => <div key={invoice.id} className="flex items-center gap-3 border-b border-stone-100 p-4 last:border-0"><div className="flex size-9 items-center justify-center rounded-lg bg-stone-100 text-stone-500"><FileText size={16} /></div><div><div className="text-sm font-semibold">Invoice #{invoice.number || invoice.id}</div><div className="mt-0.5 text-xs text-stone-500">{invoice.description || "Digital services"} · {invoice.dueDate || "No due date"}</div></div><div className="ml-auto text-right"><div className="text-sm font-semibold">R {(invoice.amount || 0).toLocaleString()}</div><StatusPill tone={invoice.status === "Paid" ? "success" : "warning"}>{invoice.status || "Open"}</StatusPill></div></div>) : <div className="p-12 text-center text-sm text-stone-500">No invoices have been added to this account yet.</div>}</div></div>; }
-function SeoChecks({ seoUrl, setSeoUrl, seoRan, setSeoRan }: { seoUrl: string; setSeoUrl: (value: string) => void; seoRan: boolean; setSeoRan: (value: boolean) => void }) { return <div className="space-y-8"><PageHeading eyebrow="Website intelligence" title="SEO checks" detail="Run a quick pass on any website and turn findings into clear next steps." /><div className="rounded-xl bg-[#171714] p-6 text-white sm:p-8"><div className="max-w-2xl"><div className="flex size-10 items-center justify-center rounded-lg bg-orange-500"><Globe2 size={20} /></div><h2 className="mt-6 font-serif text-3xl font-bold tracking-[-0.03em]">Is this site ready to be found?</h2><p className="mt-2 text-sm leading-6 text-stone-400">Check technical SEO, content signals and performance in under a minute.</p><div className="mt-7 flex flex-col gap-2 sm:flex-row"><input value={seoUrl} onChange={(event) => { setSeoUrl(event.target.value); setSeoRan(false); }} placeholder="https://clientwebsite.co.za" className="h-12 min-w-0 flex-1 rounded-lg border border-white/15 bg-white/10 px-4 text-sm text-white outline-none placeholder:text-stone-500 focus:border-orange-400" /><button disabled={!seoUrl} onClick={() => setSeoRan(true)} className="h-12 rounded-lg bg-orange-600 px-5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">Run check</button></div></div></div>{seoRan && <div className="grid gap-4 sm:grid-cols-3"><div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5"><div className="flex items-center justify-between text-emerald-700"><span className="text-xs font-bold uppercase tracking-wider">Passed</span><CheckCircle2 size={20} /></div><div className="mt-4 font-serif text-4xl font-bold text-emerald-900">9</div><p className="mt-1 text-xs text-emerald-800">of 12 checks</p></div><div className="rounded-xl border border-orange-200 bg-orange-50 p-5"><div className="flex items-center justify-between text-orange-700"><span className="text-xs font-bold uppercase tracking-wider">Review</span><Activity size={20} /></div><div className="mt-4 font-serif text-4xl font-bold text-orange-900">3</div><p className="mt-1 text-xs text-orange-800">opportunities found</p></div><div className="rounded-xl border border-stone-200 bg-white p-5"><div className="flex items-center justify-between text-stone-500"><span className="text-xs font-bold uppercase tracking-wider">Overall score</span><Sparkles size={20} /></div><div className="mt-4 font-serif text-4xl font-bold">78<span className="text-xl text-stone-400">/100</span></div><p className="mt-1 text-xs text-stone-500">Good foundation</p></div></div>}<div className="grid gap-4 md:grid-cols-2"><div className="rounded-xl border border-stone-200 bg-white p-5"><div className="flex items-center gap-3"><Users size={18} className="text-orange-600" /><h2 className="font-serif text-xl font-bold">Client-ready reports</h2></div><p className="mt-2 text-sm leading-6 text-stone-500">Turn every check into a branded report your client can understand and act on.</p></div><div className="rounded-xl border border-stone-200 bg-white p-5"><div className="flex items-center gap-3"><ShieldCheck size={18} className="text-emerald-600" /><h2 className="font-serif text-xl font-bold">Permissioned access</h2></div><p className="mt-2 text-sm leading-6 text-stone-500">Keep audit history and client visibility in one secure project workspace.</p></div></div></div>; }
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) { return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"><div className="w-full max-w-md rounded-xl bg-white p-5 shadow-2xl sm:p-6"><div className="flex items-center justify-between"><h2 className="font-serif text-2xl font-bold">{title}</h2><button aria-label="Close dialog" onClick={onClose} className="rounded-md p-1 text-stone-400 hover:bg-stone-100"><X size={18} /></button></div><div className="mt-5">{children}</div></div></div>; }
-
-export default ClientDashboard;
+function SignatureModal({ document, previewUrl, name, setName, consented, setConsented, declineReason, setDeclineReason, busy, onClose, onSign, onDecline }: { document: DocumentRecord; previewUrl: string; name: string; setName: (value: string) => void; consented: boolean; setConsented: (value: boolean) => void; declineReason: string; setDeclineReason: (value: string) => void; busy: boolean; onClose: () => void; onSign: () => void; onDecline: () => void }) { const canSign = isPdf(document); return <Modal title="Review and sign" onClose={onClose}><div className="overflow-hidden rounded-lg border border-stone-200 bg-stone-50">{previewUrl && <iframe src={previewUrl} title={`Preview ${document.name}`} className="h-56 w-full bg-white" />}</div><div className="mt-4"><strong className="text-sm">{document.name}</strong><p className="mt-1 text-xs leading-5 text-stone-500">{canSign ? "Confirm your name and consent to place an electronic signature on this PDF. A completed copy will be saved to your account." : "This file is not a PDF. Please ask your account team to send a PDF version for in-platform signing."}</p></div>{canSign && <><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Your full legal name" className="mt-4 h-11 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm outline-none focus:border-orange-500" /><label className="mt-3 flex gap-2 rounded-lg bg-orange-50 p-3 text-xs leading-5 text-orange-900"><input className="mt-0.5" type="checkbox" checked={consented} onChange={(event) => setConsented(event.target.checked)} />I agree to use an electronic signature for this document and understand the signed PDF will be recorded in this portal.</label><button disabled={!name.trim() || !consented || busy} onClick={onSign} className="primary mt-4 w-full justify-center disabled:opacity-50">{busy && <LoaderCircle className="animate-spin" size={16} />}{busy ? "Finalizing signed PDF…" : "Sign and save PDF"}</button><div className="mt-5 border-t border-stone-100 pt-4"><p className="text-xs font-bold text-stone-600">Need changes instead?</p><textarea value={declineReason} onChange={(event) => setDeclineReason(event.target.value)} placeholder="Tell the team what needs to change" className="mt-2 min-h-20 w-full rounded-lg border border-stone-200 p-3 text-sm outline-none focus:border-orange-500" /><button disabled={!declineReason.trim() || busy} onClick={onDecline} className="mt-2 w-full rounded-lg border border-stone-300 px-4 py-3 text-xs font-bold text-stone-700 disabled:opacity-50">Request changes</button></div></>}</Modal>; }
+function UploadModal({ file, setFile, title, setTitle, busy, onClose, onSubmit }: { file: File | null; setFile: (file: File | null) => void; title: string; setTitle: (value: string) => void; busy: boolean; onClose: () => void; onSubmit: (event: FormEvent) => void }) { return <Modal title="Upload a document" onClose={onClose}><form onSubmit={onSubmit}><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Document title (optional)" className="h-11 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm outline-none focus:border-orange-500" /><label className="mt-3 block cursor-pointer rounded-lg border-2 border-dashed border-stone-200 bg-stone-50 p-7 text-center text-xs font-bold text-stone-600"><CloudUpload className="mx-auto mb-2 text-orange-600" size={22} />{file ? file.name : "Choose a PDF, DOCX, or XLSX (max 20 MB)"}<input className="sr-only" type="file" accept=".pdf,.docx,.xlsx" onChange={(event) => setFile(event.target.files?.[0] || null)} /></label><button disabled={!file || busy} className="primary mt-4 w-full justify-center disabled:opacity-50">{busy && <LoaderCircle className="animate-spin" size={16} />}{busy ? "Uploading…" : "Upload securely"}</button></form></Modal>; }
+function Heading({ eyebrow, title, detail, action }: { eyebrow: string; title: string; detail: string; action?: React.ReactNode }) { return <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><div className="text-[10px] font-bold uppercase tracking-[.2em] text-orange-700">{eyebrow}</div><h1 className="mt-2 font-serif text-4xl font-bold tracking-[-.045em] sm:text-5xl">{title}</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-stone-500">{detail}</p></div>{action}</div>; }
+function Metric({ icon: Icon, label, value, detail, tone = "stone" }: { icon: typeof BriefcaseBusiness; label: string; value: string; detail: string; tone?: "stone" | "orange" | "green" }) { const styles = tone === "orange" ? "bg-orange-50 text-orange-700" : tone === "green" ? "bg-emerald-50 text-emerald-700" : "bg-stone-100 text-stone-600"; return <div className="rounded-xl border border-stone-200 bg-white p-5"><div className="flex items-center justify-between"><span className="text-xs font-semibold text-stone-500">{label}</span><span className={`flex size-9 items-center justify-center rounded-lg ${styles}`}><Icon size={17} /></span></div><div className="mt-5 font-serif text-3xl font-bold tracking-[-.04em]">{value}</div><p className="mt-1 text-xs text-stone-500">{detail}</p></div>; }
+function Status({ status }: { status: string }) { const tone = statusTone(status); const styles = tone === "success" ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : tone === "danger" ? "bg-red-50 text-red-700 ring-red-200" : tone === "warning" ? "bg-orange-50 text-orange-700 ring-orange-200" : "bg-stone-100 text-stone-600 ring-stone-200"; return <span className={`inline-flex rounded-full px-2 py-1 text-[10px] font-bold capitalize ring-1 ring-inset ${styles}`}>{status.replaceAll("_", " ")}</span>; }
+function Banner({ tone, text, onDismiss }: { tone: "success" | "error"; text: string; onDismiss: () => void }) { return <div className={`mb-5 flex items-start justify-between gap-3 rounded-lg border p-3 text-xs font-semibold ${tone === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-800"}`}><span>{text}</span><button onClick={onDismiss} aria-label="Dismiss message"><X size={15} /></button></div>; }
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) { return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"><div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-5 shadow-2xl sm:p-6"><div className="flex items-center justify-between"><h2 className="font-serif text-2xl font-bold">{title}</h2><button onClick={onClose} className="rounded-md p-1 text-stone-400 hover:bg-stone-100" aria-label="Close dialog"><X size={18} /></button></div><div className="mt-5">{children}</div></div></div>; }
+function Empty({ label }: { label: string }) { return <div className="p-10 text-center text-sm leading-6 text-stone-500">{label}</div>; }
+function Loading() { return <div className="flex min-h-screen items-center justify-center bg-[#f6f5f1] text-sm font-semibold text-stone-500"><LoaderCircle className="mr-2 animate-spin" size={17} />Loading your secure workspace…</div>; }
+function isPdf(record: DocumentRecord) { return record.contentType === "application/pdf" || record.name.toLowerCase().endsWith(".pdf"); }
+function isDocumentExpired(record: DocumentRecord) { return Boolean(record.expiresAt && typeof record.expiresAt === "object" && record.expiresAt !== null && "toDate" in record.expiresAt && typeof record.expiresAt.toDate === "function" && record.expiresAt.toDate() < new Date()); }

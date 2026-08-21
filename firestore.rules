@@ -13,21 +13,147 @@ service cloud.firestore {
       return signedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
+    function accountMember(accountId) {
+      return signedIn() && exists(/databases/$(database)/documents/accounts/$(accountId)/members/$(request.auth.uid));
+    }
+
+    function legacyClient(clientId) {
+      return signedIn() && clientId == request.auth.uid;
+    }
+
+    function documentRecipient(data) {
+      return signedIn()
+        && data.clientVisible == true
+        && accountMember(data.accountId)
+        && request.auth.uid in data.recipientIds;
+    }
+
     match /users/{userId} {
       allow read: if signedIn() && (request.auth.uid == userId || internalUser());
-      allow create: if adminUser() && request.resource.data.role in ['client', 'staff', 'admin'];
+      allow create: if (adminUser() && request.resource.data.role in ['client', 'staff', 'admin'])
+        || (internalUser() && request.resource.data.role == 'client');
       allow update: if adminUser();
       allow delete: if adminUser();
     }
 
+    match /accounts/{accountId} {
+      allow read: if internalUser() || accountMember(accountId);
+      allow create, update, delete: if internalUser();
+
+      match /members/{memberId} {
+        allow read: if internalUser() || request.auth.uid == memberId;
+        allow create, update, delete: if internalUser();
+      }
+    }
+
+    match /tasks/{taskId} {
+      allow read: if internalUser() || (resource.data.clientVisible == true && accountMember(resource.data.accountId));
+      allow create, update, delete: if internalUser();
+    }
+
     match /documents/{documentId} {
-      allow read: if signedIn() && (resource.data.ownerId == request.auth.uid || internalUser());
-      allow create: if signedIn() && (request.resource.data.ownerId == request.auth.uid || internalUser());
-      allow update, delete: if signedIn() && (resource.data.ownerId == request.auth.uid || adminUser());
+      allow read: if internalUser()
+        || legacyClient(resource.data.ownerId)
+        || (resource.data.clientVisible == true && documentRecipient(resource.data));
+      allow create: if internalUser()
+        || legacyClient(request.resource.data.ownerId)
+        || (accountMember(request.resource.data.accountId) && request.resource.data.uploaderId == request.auth.uid);
+      allow update: if internalUser()
+        || (
+          documentRecipient(resource.data)
+          && accountMember(resource.data.accountId)
+          && resource.data.status == 'awaiting_signature'
+          && (!('expiresAt' in resource.data) || resource.data.expiresAt == null || resource.data.expiresAt > request.time)
+          && request.resource.data.signedBy == request.auth.uid
+          && request.resource.data.status == 'signed'
+          && request.resource.data.signedStoragePath == 'accounts/' + resource.data.accountId + '/documents/' + documentId + '/signed-' + request.auth.uid + '.pdf'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'signedAt', 'signedBy', 'signedByName', 'signedStoragePath'
+          ])
+        )
+        || (
+          documentRecipient(resource.data)
+          && resource.data.status == 'awaiting_signature'
+          && request.resource.data.status == 'declined'
+          && request.resource.data.declinedBy == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'declinedAt', 'declinedBy', 'declineReason'
+          ])
+        );
+      allow delete: if internalUser();
+    }
+
+    match /documentEvents/{eventId} {
+      allow read: if internalUser() || request.auth.uid == resource.data.actorId;
+      allow create: if internalUser()
+        || (
+          signedIn()
+        && request.resource.data.actorId == request.auth.uid
+        && request.resource.data.keys().hasOnly(['accountId', 'documentId', 'eventType', 'actorId', 'createdAt'])
+        && request.resource.data.eventType in ['viewed', 'downloaded', 'signed', 'declined']
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.accountId == get(/databases/$(database)/documents/documents/$(request.resource.data.documentId)).data.accountId
+        && get(/databases/$(database)/documents/documents/$(request.resource.data.documentId)).data.clientVisible == true
+        && accountMember(get(/databases/$(database)/documents/documents/$(request.resource.data.documentId)).data.accountId)
+        && request.auth.uid in get(/databases/$(database)/documents/documents/$(request.resource.data.documentId)).data.recipientIds
+        && (
+          request.resource.data.eventType in ['viewed', 'downloaded']
+          || (
+            request.resource.data.eventType == 'signed'
+            && get(/databases/$(database)/documents/documents/$(request.resource.data.documentId)).data.status == 'signed'
+            && get(/databases/$(database)/documents/documents/$(request.resource.data.documentId)).data.signedBy == request.auth.uid
+          )
+          || (
+            request.resource.data.eventType == 'declined'
+            && get(/databases/$(database)/documents/documents/$(request.resource.data.documentId)).data.status == 'declined'
+            && get(/databases/$(database)/documents/documents/$(request.resource.data.documentId)).data.declinedBy == request.auth.uid
+          )
+        )
+        );
+      allow update, delete: if false;
+    }
+
+    match /documents/{documentId}/versions/{versionId} {
+      allow read, create: if internalUser();
+      allow update, delete: if false;
+    }
+
+    match /projects/{projectId} {
+      allow read: if internalUser()
+        || legacyClient(resource.data.clientId)
+        || (resource.data.clientVisible == true && accountMember(resource.data.accountId));
+      allow write: if internalUser();
+    }
+
+    match /invoices/{invoiceId} {
+      allow read: if internalUser()
+        || legacyClient(resource.data.clientId)
+        || (resource.data.clientVisible == true && accountMember(resource.data.accountId));
+      allow write: if internalUser();
+    }
+
+    match /activities/{activityId} {
+      allow read: if internalUser() || (resource.data.clientVisible == true && accountMember(resource.data.accountId));
+      allow create: if internalUser()
+        || (
+          accountMember(request.resource.data.accountId)
+          && request.resource.data.actorId == request.auth.uid
+          && request.resource.data.clientVisible == true
+          && request.resource.data.type == 'client_document_uploaded'
+          && request.resource.data.message == 'A client document was uploaded for the Virtuo team.'
+          && request.resource.data.keys().hasOnly([
+            'accountId', 'type', 'message', 'actorId', 'clientVisible', 'createdAt'
+          ])
+        );
+      allow update, delete: if internalUser();
+    }
+
+    match /projectNotes/{projectId} {
+      allow read, create, update, delete: if internalUser();
     }
 
     match /proposals/{recordId} {
-      allow read: if internalUser() || (signedIn() && resource.data.clientId == request.auth.uid);
+      allow read: if internalUser() || legacyClient(resource.data.clientId);
       allow create, update, delete: if internalUser();
     }
 
@@ -42,16 +168,6 @@ service cloud.firestore {
     match /staff/{recordId} {
       allow read: if internalUser();
       allow create, update, delete: if adminUser();
-    }
-
-    match /projects/{projectId} {
-      allow read: if internalUser() || (signedIn() && resource.data.clientId == request.auth.uid);
-      allow write: if internalUser();
-    }
-
-    match /invoices/{invoiceId} {
-      allow read: if internalUser() || (signedIn() && resource.data.clientId == request.auth.uid);
-      allow write: if internalUser();
     }
   }
 }
