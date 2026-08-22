@@ -1,0 +1,44 @@
+HP@DESKTOP-GD4475R MINGW64 ~/Desktop/virtuo-designs (1)/virtuo-designs (main)
+$ pnpm run build
+pnpm run dev -- --port 20791
+✓ Lockfile passes supply-chain policies (verified 41m ago)
+Lockfile is up to date, resolution step is skipped
+Already up to date
+[ERR_PNPM_IGNORED_BUILDS] Ignored build scripts: @firebase/util@1.15.2, protobufjs@7.6.5
+
+Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts.
+[ERROR] Command failed with exit code 1: "C:\Program Files\nodejs\node.exe" "C:\Program Files\nodejs\node_modules\pnpm\bin\pnpm.mjs" install
+
+pnpm: Command failed with exit code 1: "C:\Program Files\nodejs\node.exe" "C:\Program Files\nodejs\node_modules\pnpm\bin\pnpm.mjs" install
+    at getFinalError (file:///C:/Program%20Files/nodejs/node_modules/pnpm/dist/pnpm.mjs:34291:14)
+    at makeError (file:///C:/Program%20Files/nodejs/node_modules/pnpm/dist/pnpm.mjs:36598:21)
+    at getSyncResult (file:///C:/Program%20Files/nodejs/node_modules/pnpm/dist/pnpm.mjs:38442:10)
+    at spawnSubprocessSync (file:///C:/Program%20Files/nodejs/node_modules/pnpm/dist/pnpm.mjs:38402:14)
+    at execaCoreSync (file:///C:/Program%20Files/nodejs/node_modules/pnpm/dist/pnpm.mjs:38332:23)
+    at callBoundExeca (file:///C:/Program%20Files/nodejs/node_modules/pnpm/dist/pnpm.mjs:40860:23)
+    at boundExeca (file:///C:/Program%20Files/nodejs/node_modules/pnpm/dist/pnpm.mjs:40837:49)
+    at sync (file:///C:/Program%20Files/nodejs/node_modules/pnpm/dist/pnpm.mjs:40996:10)
+    at runPnpmCli (file:///C:/Program%20Files/nodejs/node_modules/pnpm/dist/pnpm.mjs:247126:5)
+    at runDepsStatusCheck (file:///C:/Program%20Files/nodejs/node_modules/pnpm/dist/pnpm.mjs:248869:7)
+✓ Lockfile passes supply-chain policies (verified 41m ago)
+Lockfile is up to date, resolution step is skipped
+Already up to date
+[ERR_PNPM_IGNORED_BUILDS] Ignored build scripts: @firebase/util@1.15.2, protobufjs@7.6.5
+
+Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts.
+[ERROR] Command failed with exit code 1: "C:\Program Files\nodejs\node.exe" "C:\Program Files\nodejs\node_modules\pnpm\bin\pnpm.mjs" install
+
+pnpm: Command failed with exit code 1: "C:\Program Files\nodejs\node.exe" "C:\Program Files\nodejs\node_modules\pnpm\bin\pnpm.mjs" install
+    at getFinalError (file:///C:/Program%20Files/nodejs/node_modules/pnpm/dist/pnpm.mjs:34291:14)
+    at makeError (file:///C:/Program%20Files/nodejs/node_modules/pnpm/dist/pnpm.mjs:36598:21)
+    at getSyncResult (file:///C:/Program%20Files/nodejs/node_modules/pnpm/dist/pnpm.mjs:38442:10)
+    at spawnSubprocessSync (file:///C:/Program%20Files/nodejs/node_modules/pnpm/dist/pnpm.mjs:38402:14)
+    at execaCoreSync (file:///C:/Program%20Files/nodejs/node_modules/pnpm/dist/pnpm.mjs:38332:23)
+    at callBoundExeca (file:///C:/Program%20Files/nodejs/node_modules/pnpm/dist/pnpm.mjs:40860:23)
+    at boundExeca (file:///C:/Program%20Files/nodejs/node_modules/pnpm/dist/pnpm.mjs:40837:49)
+    at sync (file:///C:/Program%20Files/nodejs/node_modules/pnpm/dist/pnpm.mjs:40996:10)
+    at runPnpmCli (file:///C:/Program%20Files/nodejs/node_modules/pnpm/dist/pnpm.mjs:247126:5)
+    at runDepsStatusCheck (file:///C:/Program%20Files/nodejs/node_modules/pnpm/dist/pnpm.mjs:248869:7)
+
+HP@DESKTOP-GD4475R MINGW64 ~/Desktop/virtuo-designs (1)/virtuo-designs (main)
+$ 
