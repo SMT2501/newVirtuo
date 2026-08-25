@@ -134,8 +134,8 @@ export function Seo({ title, description, path, keywords, image }: SeoProps) {
         ],
       },
       founder: [
-        { "@type": "Person", name: "Samkele Mthuli", jobTitle: "Co-Founder & Lead Developer" },
-        { "@type": "Person", name: "Thabo Mithi", jobTitle: "Co-Founder & Head of Consulting" },
+        { "@type": "Person", name: "Samkele Mthuli", jobTitle: "Co-Founder & Lead Developer", sameAs: "https://www.linkedin.com/in/samkele-mthuli-9a99ba206/" },
+        { "@type": "Person", name: "Thabo Mithi", jobTitle: "Co-Founder & Head of Consulting", sameAs: "https://www.linkedin.com/in/thabo-mithi-48106329/" },
       ],
       aggregateRating: {
         "@type": "AggregateRating",

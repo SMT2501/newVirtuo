@@ -10,7 +10,7 @@ const founders = [
     initials: "SM",
     bio: "Computer Science student, web developer, and tech entrepreneur based in Cape Town. Virtuo grew out of Samkele's experience building Campus Marketplace — a real platform solving a real student need at the University of the Western Cape. He leads all technical architecture and product development.",
     expertise: ["React / Next.js", "Node.js & APIs", "UI/UX Design", "Web Applications"],
-    linkedin: "https://www.linkedin.com/in/samkele-mthuli", // update with real URL
+    linkedin: "https://www.linkedin.com/in/samkele-mthuli-9a99ba206/",
     // photo: "/images/samkele.webp", // uncomment and add photo to public/images/
   },
   {
@@ -19,7 +19,7 @@ const founders = [
     initials: "TM",
     bio: "9+ years of enterprise CRM, CDP, and digital transformation experience across Europe and Africa. Thabo has delivered multi-market transformation programmes for Shoprite, Sasol, Mediclinic, and MTN. He leads all strategic consulting engagements at Virtuo.",
     expertise: ["CRM & CDP Strategy", "Digital Transformation", "AI Integration", "Business Analysis"],
-    linkedin: "https://www.linkedin.com/in/thabo-mithi", // update with real URL
+    linkedin: "https://www.linkedin.com/in/thabo-mithi-48106329/",
     // photo: "/images/thabo.webp", // uncomment and add photo to public/images/
   },
 ];
