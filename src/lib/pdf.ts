@@ -52,7 +52,7 @@ export async function stampSignature(
   return pdf.save();
 }
 
-export async function downloadInvoicePdf(invoice: InvoiceRecord, accountName: string) {
+export async function downloadInvoicePdf(invoice: InvoiceRecord, accountName: string, recipientName = "", recipientEmail = "") {
   const pdf = await PDFDocument.create();
   const page = pdf.addPage([595, 842]);
   const font = await pdf.embedFont(StandardFonts.Helvetica);
@@ -75,10 +75,12 @@ export async function downloadInvoicePdf(invoice: InvoiceRecord, accountName: st
 
   page.drawText("INVOICE", { x: 52, y: 706, size: 10, font: bold, color: rgb(0.87, 0.39, 0.05) });
   page.drawText(`Invoice ${invoice.number || invoice.id.slice(0, 8).toUpperCase()}`, { x: 52, y: 676, size: 20, font: bold, color: rgb(0.07, 0.07, 0.07) });
-  page.drawText(`Bill to: ${accountName}`, { x: 52, y: 640, size: 11, font });
-  page.drawText(`Due: ${invoice.dueDate || "On receipt"}`, { x: 52, y: 622, size: 10, font, color: rgb(0.42, 0.42, 0.42) });
+  page.drawText(`Bill to: ${invoice.accountName || accountName}`, { x: 52, y: 640, size: 11, font });
+  if (invoice.recipientName || recipientName) page.drawText(`Sent to: ${invoice.recipientName || recipientName}`, { x: 52, y: 622, size: 10, font, color: rgb(0.25, 0.25, 0.23) });
+  if (invoice.recipientEmail || recipientEmail) page.drawText(`Email: ${invoice.recipientEmail || recipientEmail}`, { x: 52, y: 606, size: 9, font, color: rgb(0.42, 0.42, 0.42) });
+  page.drawText(`Due: ${invoice.dueDate || "On receipt"}`, { x: 52, y: invoice.recipientName || recipientName || invoice.recipientEmail || recipientEmail ? 588 : 622, size: 10, font, color: rgb(0.42, 0.42, 0.42) });
 
-  let y = 570;
+  let y = 548;
   page.drawRectangle({ x: 52, y: y - 12, width: 491, height: 28, color: rgb(0.97, 0.96, 0.94) });
   page.drawText("Description", { x: 64, y, size: 10, font: bold });
   page.drawText("Qty", { x: 396, y, size: 10, font: bold });

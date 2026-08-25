@@ -45,6 +45,7 @@ import {
   type ClientRecord,
   type DocumentRecord,
   type InvoiceRecord,
+  type InvoiceStatus,
   type ProjectRecord,
   type TaskRecord,
   formatMoney,
@@ -57,6 +58,38 @@ import { downloadInvoicePdf, getPdfPageSize } from "@/lib/pdf";
 
 type View = "Overview" | "Accounts" | "Projects" | "Tasks" | "Documents" | "Invoices" | "Settings";
 type ModalKind = "account" | "contact" | "project" | "task" | "document" | "invoice" | "communication" | "share" | null;
+type InvoiceLineItemForm = { description: string; quantity: string; unitPrice: string };
+type InvoiceForm = {
+  accountId: string;
+  clientId: string;
+  projectId: string;
+  number: string;
+  description: string;
+  dueDate: string;
+  taxRate: string;
+  discount: string;
+  status: InvoiceStatus;
+  lineItems: InvoiceLineItemForm[];
+};
+
+function newInvoiceLineItem(): InvoiceLineItemForm {
+  return { description: "", quantity: "1", unitPrice: "" };
+}
+
+function newInvoiceForm(): InvoiceForm {
+  return {
+    accountId: "",
+    clientId: "",
+    projectId: "",
+    number: "",
+    description: "",
+    dueDate: "",
+    taxRate: "0",
+    discount: "0",
+    status: "draft",
+    lineItems: [newInvoiceLineItem()],
+  };
+}
 
 const views: { label: View; icon: typeof LayoutDashboard }[] = [
   { label: "Overview", icon: LayoutDashboard },
@@ -95,7 +128,7 @@ export default function CRMWorkspace() {
   const [documentPreviewUrl, setDocumentPreviewUrl] = useState("");
   const [documentPageSize, setDocumentPageSize] = useState({ width: 595, height: 842 });
   const [documentPageCount, setDocumentPageCount] = useState(1);
-  const [invoiceForm, setInvoiceForm] = useState({ accountId: "", projectId: "", number: "", description: "", amount: "", dueDate: "", taxRate: "0", discount: "0", lineItems: "" });
+  const [invoiceForm, setInvoiceForm] = useState<InvoiceForm>(newInvoiceForm);
   const [editingInvoiceId, setEditingInvoiceId] = useState("");
   const [communicationForm, setCommunicationForm] = useState({ accountId: "", message: "", clientVisible: false });
   const [shareCredentials, setShareCredentials] = useState<{ projectName: string; shareId: string; pin: string } | null>(null);
@@ -462,38 +495,58 @@ export default function CRMWorkspace() {
 
   async function saveInvoice(event: FormEvent) {
     event.preventDefault();
-    if (!user || !invoiceForm.accountId || !invoiceForm.amount) return;
+    if (!user || !invoiceForm.accountId) return;
+    const lineItems: NonNullable<InvoiceRecord["lineItems"]> = [];
+    for (const [index, item] of invoiceForm.lineItems.entries()) {
+      const description = item.description.trim();
+      const hasValues = Boolean(description || item.unitPrice.trim() || item.quantity.trim() !== "1");
+      if (index > 0 && !hasValues) continue;
+      const quantity = Number(item.quantity || 1);
+      const unitPrice = Number(item.unitPrice);
+      if (!description || !Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(unitPrice) || unitPrice < 0) {
+        setError(index === 0 ? "Add a description and amount for the required charge." : `Complete charge ${index + 1}, or remove it.`);
+        return;
+      }
+      lineItems.push({ description, quantity, unitPrice });
+    }
+    if (!lineItems.length) {
+      setError("Add at least one charge to the invoice.");
+      return;
+    }
     setBusy(true);
     try {
       const existingInvoice = editingInvoiceId ? invoices.find((invoice) => invoice.id === editingInvoiceId) : undefined;
-      const originalLineItems = existingInvoice?.lineItems?.map((item) => `${item.description} | ${item.quantity} | ${item.unitPrice}`).join("\n") || "";
-      const hasEditedLineItems = Boolean(invoiceForm.lineItems.trim()) && (!editingInvoiceId || invoiceForm.lineItems.trim() !== originalLineItems.trim());
-      const lineItems = hasEditedLineItems ? parseInvoiceLines(invoiceForm.lineItems, invoiceForm.description, Number(invoiceForm.amount)) : [];
-      const amount = hasEditedLineItems
-        ? lineItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0)
-        : Number(invoiceForm.amount);
+      const amount = lineItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
       const discount = Number(invoiceForm.discount || 0);
       const taxRate = Number(invoiceForm.taxRate || 0);
       const subtotal = amount;
       const taxAmount = (subtotal - discount) * (taxRate / 100);
-      const accountClient = clients.find((client) => client.accountId === invoiceForm.accountId);
+      const account = accounts.find((record) => record.id === invoiceForm.accountId);
+      const selectedClient = clients.find((client) => client.id === invoiceForm.clientId);
+      const existingClient = existingInvoice?.clientId ? clients.find((client) => client.id === existingInvoice.clientId) : undefined;
+      const accountClient = selectedClient || existingClient || (!editingInvoiceId ? clients.find((client) => client.accountId === invoiceForm.accountId) : undefined);
+      const recipientName = accountClient?.name || accountClient?.email || "";
       const invoiceData = {
-        accountId: invoiceForm.accountId, clientId: accountClient?.id || null, projectId: invoiceForm.projectId || null,
+        accountId: invoiceForm.accountId, accountName: account?.name || "", clientId: accountClient?.id || null,
+        recipientName, recipientEmail: accountClient?.email || "", projectId: invoiceForm.projectId || null,
         number: invoiceForm.number.trim() || `INV-${Date.now().toString().slice(-6)}`, description: invoiceForm.description.trim(),
         lineItems,
         subtotal, discount, taxRate, taxAmount, total: subtotal - discount + taxAmount, currency: "ZAR", dueDate: invoiceForm.dueDate,
-        ...(editingInvoiceId ? { updatedAt: serverTimestamp() } : { status: "draft", clientVisible: false, createdBy: user.uid, createdAt: serverTimestamp() }),
+        status: invoiceForm.status,
+        clientVisible: invoiceForm.status !== "draft",
+        paidAt: invoiceForm.status === "paid" ? existingInvoice?.paidAt || serverTimestamp() : null,
+        ...(editingInvoiceId ? { updatedAt: serverTimestamp() } : { createdBy: user.uid, createdAt: serverTimestamp() }),
       };
       if (editingInvoiceId) {
         await updateDoc(doc(db, "invoices", editingInvoiceId), invoiceData);
-        await addActivity(invoiceForm.accountId, "invoice_updated", "An invoice draft was updated.", false, invoiceForm.projectId);
+        await addActivity(invoiceForm.accountId, "invoice_updated", `Invoice ${invoiceForm.number || editingInvoiceId.slice(0, 8)} was updated.`, invoiceForm.status !== "draft", invoiceForm.projectId);
       } else {
         await addDoc(collection(db, "invoices"), invoiceData);
-        await addActivity(invoiceForm.accountId, "invoice_created", `A new invoice draft was created.`, false, invoiceForm.projectId);
+        await addActivity(invoiceForm.accountId, "invoice_created", `A new ${invoiceForm.status} invoice was created.`, invoiceForm.status !== "draft", invoiceForm.projectId);
       }
-      setInvoiceForm({ accountId: "", projectId: "", number: "", description: "", amount: "", dueDate: "", taxRate: "0", discount: "0", lineItems: "" });
+      setInvoiceForm(newInvoiceForm());
       setEditingInvoiceId("");
-      setMessage(editingInvoiceId ? "Invoice draft updated." : "Invoice draft created. Send it when the work is ready to bill.");
+      setMessage(editingInvoiceId ? "Invoice updated." : "Invoice created.");
       resetAndClose();
       await loadWorkspace();
     } catch {
@@ -516,7 +569,7 @@ export default function CRMWorkspace() {
     try {
       if (status === "void" && !window.confirm(`Void invoice ${invoice.number || invoice.id.slice(0, 8)}? This cannot be undone from the client portal.`)) return;
       const clientVisible = status !== "draft";
-      await updateDoc(doc(db, "invoices", invoice.id), { status, clientVisible, updatedAt: serverTimestamp() });
+      await updateDoc(doc(db, "invoices", invoice.id), { status, clientVisible, paidAt: status === "paid" ? serverTimestamp() : null, updatedAt: serverTimestamp() });
       if (invoice.accountId) await addActivity(invoice.accountId, "invoice_updated", `Invoice ${invoice.number || invoice.id.slice(0, 8)} marked ${status.replace("_", " ")}.`, clientVisible, invoice.projectId);
       await loadWorkspace();
     } catch {
@@ -527,10 +580,19 @@ export default function CRMWorkspace() {
   function editInvoice(invoice: InvoiceRecord) {
     setEditingInvoiceId(invoice.id);
     setInvoiceForm({
-      accountId: invoice.accountId || "", projectId: invoice.projectId || "", number: invoice.number || "", description: invoice.description || "",
-      amount: String(invoice.subtotal || invoice.amount || invoiceTotal(invoice)), dueDate: invoice.dueDate || "", taxRate: String(invoice.taxRate || 0),
-      discount: String(invoice.discount || 0), lineItems: invoice.lineItems?.map((item) => `${item.description} | ${item.quantity} | ${item.unitPrice}`).join("\n") || "",
+      accountId: invoice.accountId || "", clientId: invoice.clientId || "", projectId: invoice.projectId || "", number: invoice.number || "", description: invoice.description || "",
+      dueDate: invoice.dueDate || "", taxRate: String(invoice.taxRate || 0), discount: String(invoice.discount || 0),
+      status: (invoice.status || "draft") as InvoiceStatus,
+      lineItems: invoice.lineItems?.length
+        ? invoice.lineItems.map((item) => ({ description: item.description, quantity: String(item.quantity), unitPrice: String(item.unitPrice) }))
+        : [{ description: invoice.description || "Professional services", quantity: "1", unitPrice: String(invoice.subtotal || invoice.amount || invoiceTotal(invoice)) }],
     });
+    setModal("invoice");
+  }
+
+  function createInvoice() {
+    setEditingInvoiceId("");
+    setInvoiceForm(newInvoiceForm());
     setModal("invoice");
   }
 
@@ -602,7 +664,7 @@ export default function CRMWorkspace() {
           {view === "Projects" && <ProjectsView projects={visibleProjects} accounts={accounts} documents={documents} onCreate={() => setModal("project")} onShare={(project) => void createProjectShare(project)} onDisableShare={(project) => void disableProjectShare(project)} onAddDocument={addProjectDocument} />}
           {view === "Tasks" && <TasksView tasks={visibleTasks} projects={projects} accounts={accounts} onCreate={() => setModal("task")} onUpdate={updateTaskStatus} />}
           {view === "Documents" && <DocumentsView documents={visibleDocuments} accounts={accounts} projects={projects} onCreate={() => setModal("document")} onDownload={downloadDocument} onShare={shareDocument} />}
-          {view === "Invoices" && <InvoicesView invoices={visibleInvoices} accounts={accounts} onCreate={() => { setEditingInvoiceId(""); setModal("invoice"); }} onStatus={updateInvoiceStatus} onEdit={editInvoice} />}
+          {view === "Invoices" && <InvoicesView invoices={visibleInvoices} accounts={accounts} clients={clients} onCreate={createInvoice} onStatus={updateInvoiceStatus} onEdit={editInvoice} />}
           {view === "Settings" && <SettingsView clients={clients} accounts={accounts} />}
         </div>
       </main>
@@ -628,7 +690,53 @@ export default function CRMWorkspace() {
           </form>
         </Modal>
       )}
-      {modal === "invoice" && <Modal title={editingInvoiceId ? "Edit invoice" : "Create an invoice"} onClose={resetAndClose}><form onSubmit={saveInvoice} className="space-y-3"><Select value={invoiceForm.accountId} onChange={(value) => setInvoiceForm({ ...invoiceForm, accountId: value, projectId: "" })} options={accounts.map((account) => ({ value: account.id, label: account.name }))} placeholder="Choose account" required /><Select value={invoiceForm.projectId} onChange={(value) => setInvoiceForm({ ...invoiceForm, projectId: value })} options={projects.filter((project) => project.accountId === invoiceForm.accountId).map((project) => ({ value: project.id, label: project.name }))} placeholder="Linked project (optional)" /><Input value={invoiceForm.number} onChange={(value) => setInvoiceForm({ ...invoiceForm, number: value })} placeholder="Invoice number (auto-generated if blank)" /><Input value={invoiceForm.description} onChange={(value) => setInvoiceForm({ ...invoiceForm, description: value })} placeholder="Invoice summary" required /><Textarea value={invoiceForm.lineItems} onChange={(value) => setInvoiceForm({ ...invoiceForm, lineItems: value })} placeholder="Optional line items — one per line: Description | quantity | unit price" /><p className="-mt-1 text-[11px] text-stone-500">Leave line items empty to use the invoice amount below. Itemized lines override that amount.</p><div className="grid grid-cols-2 gap-3"><Input type="number" value={invoiceForm.amount} onChange={(value) => setInvoiceForm({ ...invoiceForm, amount: value })} placeholder="Invoice amount (R)" required /><Input type="date" value={invoiceForm.dueDate} onChange={(value) => setInvoiceForm({ ...invoiceForm, dueDate: value })} /></div><div className="grid grid-cols-2 gap-3"><Input type="number" value={invoiceForm.taxRate} onChange={(value) => setInvoiceForm({ ...invoiceForm, taxRate: value })} placeholder="Tax %" /><Input type="number" value={invoiceForm.discount} onChange={(value) => setInvoiceForm({ ...invoiceForm, discount: value })} placeholder="Discount (R)" /></div><Submit busy={busy} label={editingInvoiceId ? "Save invoice changes" : "Save invoice draft"} /></form></Modal>}
+      {modal === "invoice" && (
+        <Modal title={editingInvoiceId ? "Edit invoice" : "Create an invoice"} onClose={resetAndClose}>
+          <form onSubmit={saveInvoice} className="space-y-3">
+            <Select value={invoiceForm.accountId} onChange={(value) => setInvoiceForm({ ...invoiceForm, accountId: value, clientId: "", projectId: "" })} options={accounts.map((account) => ({ value: account.id, label: account.name }))} placeholder="Company / account" required />
+            <Select value={invoiceForm.clientId} onChange={(value) => setInvoiceForm({ ...invoiceForm, clientId: value })} options={clients.filter((client) => client.accountId === invoiceForm.accountId).map((client) => ({ value: client.id, label: client.name || client.email || client.id }))} placeholder="Sent to person (optional)" />
+            <p className="-mt-1 text-[11px] leading-5 text-stone-500">The selected company and contact will appear on the invoice and branded PDF.</p>
+            <Select value={invoiceForm.projectId} onChange={(value) => setInvoiceForm({ ...invoiceForm, projectId: value })} options={projects.filter((project) => project.accountId === invoiceForm.accountId).map((project) => ({ value: project.id, label: project.name }))} placeholder="Linked project (optional)" />
+            <Input value={invoiceForm.number} onChange={(value) => setInvoiceForm({ ...invoiceForm, number: value })} placeholder="Invoice number (auto-generated if blank)" />
+            <Input value={invoiceForm.description} onChange={(value) => setInvoiceForm({ ...invoiceForm, description: value })} placeholder="Invoice summary (optional)" />
+            <Select value={invoiceForm.status} onChange={(value) => setInvoiceForm({ ...invoiceForm, status: value as InvoiceStatus })} options={[{ value: "draft", label: "Draft" }, { value: "sent", label: "Sent" }, { value: "viewed", label: "Viewed" }, { value: "partially_paid", label: "Partially paid" }, { value: "paid", label: "Paid" }, { value: "overdue", label: "Overdue" }, { value: "void", label: "Void" }]} />
+
+            <section className="rounded-lg border border-stone-200 bg-stone-50 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-bold text-stone-800">Invoice charges</h3>
+                  <p className="mt-1 text-[11px] leading-5 text-stone-500">Add one required charge, then include optional items such as hosting or maintenance.</p>
+                </div>
+                <span className="shrink-0 rounded-full bg-orange-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-orange-800">1 required</span>
+              </div>
+              <div className="mt-3 space-y-3">
+                {invoiceForm.lineItems.map((item, index) => (
+                  <div key={index} className="rounded-lg border border-stone-200 bg-white p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-[10px] font-bold uppercase tracking-[.15em] text-stone-400">{index === 0 ? "Required charge" : `Optional charge ${index}`}</span>
+                      {index > 0 && <button type="button" onClick={() => setInvoiceForm((current) => ({ ...current, lineItems: current.lineItems.filter((_, itemIndex) => itemIndex !== index) }))} className="text-[11px] font-bold text-red-600 hover:text-red-700">Remove</button>}
+                    </div>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_76px_120px]">
+                      <Input value={item.description} onChange={(value) => setInvoiceForm((current) => ({ ...current, lineItems: current.lineItems.map((line, itemIndex) => itemIndex === index ? { ...line, description: value } : line) }))} placeholder={index === 0 ? "e.g. Website design" : "e.g. Hosting"} required={index === 0} />
+                      <Input type="number" min="0.01" step="0.01" value={item.quantity} onChange={(value) => setInvoiceForm((current) => ({ ...current, lineItems: current.lineItems.map((line, itemIndex) => itemIndex === index ? { ...line, quantity: value } : line) }))} placeholder="Qty" required={index === 0} />
+                      <Input type="number" min="0" step="0.01" value={item.unitPrice} onChange={(value) => setInvoiceForm((current) => ({ ...current, lineItems: current.lineItems.map((line, itemIndex) => itemIndex === index ? { ...line, unitPrice: value } : line) }))} placeholder="Amount (R)" required={index === 0} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button type="button" onClick={() => setInvoiceForm((current) => ({ ...current, lineItems: [...current.lineItems, newInvoiceLineItem()] }))} className="secondary mt-3 w-full justify-center"><Plus size={14} />Add another charge</button>
+              <p className="mt-3 text-right text-xs font-bold text-stone-700">Subtotal: {formatMoney(invoiceForm.lineItems.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0))}</p>
+            </section>
+
+            <Input type="date" value={invoiceForm.dueDate} onChange={(value) => setInvoiceForm({ ...invoiceForm, dueDate: value })} />
+            <div className="grid grid-cols-2 gap-3">
+              <Input type="number" min="0" step="0.01" value={invoiceForm.taxRate} onChange={(value) => setInvoiceForm({ ...invoiceForm, taxRate: value })} placeholder="Tax %" />
+              <Input type="number" min="0" step="0.01" value={invoiceForm.discount} onChange={(value) => setInvoiceForm({ ...invoiceForm, discount: value })} placeholder="Discount (R)" />
+            </div>
+            <Submit busy={busy} label={editingInvoiceId ? "Save invoice changes" : "Save invoice"} />
+          </form>
+        </Modal>
+      )}
       {modal === "communication" && <Modal title="Log client communication" onClose={resetAndClose}><form onSubmit={saveCommunication} className="space-y-3"><Select value={communicationForm.accountId} onChange={(value) => setCommunicationForm({ ...communicationForm, accountId: value })} options={accounts.map((account) => ({ value: account.id, label: account.name }))} placeholder="Choose account" required /><Textarea value={communicationForm.message} onChange={(value) => setCommunicationForm({ ...communicationForm, message: value })} placeholder="Call, email, meeting, or decision summary" required /><label className="flex items-center gap-2 rounded-lg bg-stone-50 p-3 text-xs font-semibold text-stone-600"><input type="checkbox" checked={communicationForm.clientVisible} onChange={(event) => setCommunicationForm({ ...communicationForm, clientVisible: event.target.checked })} />Show this note in the client portal</label><Submit busy={busy} label="Save communication" /></form></Modal>}
       {modal === "share" && shareCredentials && <Modal title="Private project link ready" onClose={resetAndClose}><div className="space-y-4"><p className="text-sm leading-6 text-stone-600"><strong>{shareCredentials.projectName}</strong> can now be opened without a client login. Share both values manually. The PIN is shown only now; rotating it will invalidate earlier visitor sessions.</p><div className="rounded-lg bg-stone-50 p-3"><div className="text-[10px] font-bold uppercase tracking-[.15em] text-stone-500">Project link</div><div className="mt-1 break-all font-mono text-xs text-stone-800">{`${window.location.origin}/project/${shareCredentials.shareId}`}</div><button onClick={() => void copyText(`${window.location.origin}/project/${shareCredentials.shareId}`, "Project link")} className="mt-3 secondary">Copy project link</button></div><div className="rounded-lg border border-orange-200 bg-orange-50 p-3"><div className="text-[10px] font-bold uppercase tracking-[.15em] text-orange-800">Project PIN</div><div className="mt-1 font-mono text-xl font-bold tracking-[.16em] text-orange-950">{shareCredentials.pin}</div><button onClick={() => void copyText(shareCredentials.pin, "Project PIN")} className="mt-3 secondary">Copy PIN</button></div><p className="text-xs leading-5 text-stone-500">Anyone with both values can view this project’s client-visible updates and signable documents.</p></div></Modal>}
     </div>
@@ -672,8 +780,12 @@ function SignaturePlacement({ fileUrl, page, pageCount, pageSize, x, y, onPageCh
   return <div className="rounded-lg border border-stone-200 bg-stone-50 p-3"><div className="flex items-center justify-between gap-3"><div><div className="text-[10px] font-bold uppercase tracking-[.16em] text-stone-500">Signature placement</div><p className="mt-1 text-xs text-stone-500">Click on the PDF where the signature should appear.</p></div>{pageCount > 1 && <label className="flex items-center gap-2 text-xs font-semibold text-stone-600">Page <select value={page} onChange={(event) => onPageChange(Number(event.target.value))} className="rounded border border-stone-200 bg-white px-2 py-1"><option value={0}>1</option>{Array.from({ length: pageCount - 1 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 2}</option>)}</select></label>}</div><div className="relative mx-auto mt-3 w-full max-w-[360px] overflow-hidden rounded border border-stone-300 bg-white shadow-sm" style={{ aspectRatio: `${pageSize.width} / ${pageSize.height}` }} onClick={place}><iframe src={`${fileUrl}#page=${page + 1}`} title="PDF signature placement preview" className="pointer-events-none absolute inset-0 h-full w-full border-0" /><div className="pointer-events-none absolute rounded border-2 border-orange-600 bg-orange-100/75 p-2 text-center text-[10px] font-bold text-orange-900" style={{ left: `${(x / pageSize.width) * 100}%`, bottom: `${(y / pageSize.height) * 100}%`, width: `${(fieldWidth / pageSize.width) * 100}%`, height: `${(fieldHeight / pageSize.height) * 100}%` }}>Signature field</div></div></div>;
 }
 
-function InvoicesView({ invoices, accounts, onCreate, onStatus, onEdit }: { invoices: InvoiceRecord[]; accounts: AccountRecord[]; onCreate: () => void; onStatus: (invoice: InvoiceRecord, status: string) => void; onEdit: (invoice: InvoiceRecord) => void }) {
-  return <div className="space-y-6"><PageTitle eyebrow="Billing operations" title="Invoices with delivery context" detail="Prepare, edit, share, track, and download invoices linked to the work they cover." action={<button onClick={onCreate} className="primary"><Plus size={16} />Create invoice</button>} /><section className="overflow-hidden rounded-xl border border-stone-200 bg-white"><div className="grid grid-cols-[1.2fr_.8fr_.8fr_auto] gap-3 border-b border-stone-100 bg-stone-50 px-5 py-3 text-[10px] font-bold uppercase tracking-[.16em] text-stone-500"><span>Invoice</span><span className="hidden sm:block">Account</span><span>Total</span><span /></div>{invoices.length ? invoices.map((invoice) => <div key={invoice.id} className="grid grid-cols-[1.2fr_.8fr_auto] items-center gap-3 border-b border-stone-100 px-5 py-4 last:border-0 sm:grid-cols-[1.2fr_.8fr_.8fr_auto]"><div><strong className="text-sm">{invoice.number || `INV-${invoice.id.slice(0, 6).toUpperCase()}`}</strong><p className="mt-1 text-xs text-stone-500">{invoice.description || "Professional services"} · {invoice.lineItems?.length || 1} line item(s) · due {invoice.dueDate || "on receipt"}</p></div><span className="hidden text-xs text-stone-500 sm:block">{accountName(accounts, invoice.accountId)}</span><div><strong className="text-sm">{formatMoney(invoiceTotal(invoice), invoice.currency || "ZAR")}</strong><div className="mt-1"><Status status={invoice.status || "draft"} /></div></div><div className="flex items-center gap-2"><button onClick={() => onEdit(invoice)} className="rounded-lg border border-stone-200 px-2.5 py-2 text-xs font-bold text-stone-700">Edit</button><button onClick={() => downloadInvoicePdf(invoice, accountName(accounts, invoice.accountId))} className="rounded-lg border border-stone-200 px-2.5 py-2 text-xs font-bold text-stone-700">PDF</button><select value={invoice.status || "draft"} onChange={(event) => onStatus(invoice, event.target.value)} className="rounded-lg border border-stone-200 bg-white px-2 py-2 text-xs font-semibold text-stone-700"><option value="draft">Draft</option><option value="sent">Sent</option><option value="viewed">Viewed</option><option value="partially_paid">Partially paid</option><option value="paid">Paid</option><option value="overdue">Overdue</option><option value="void">Void</option></select></div></div>) : <Empty label="No invoices match this view. Create a draft when the project is ready to bill." />}</section></div>;
+function InvoicesView({ invoices, accounts, clients, onCreate, onStatus, onEdit }: { invoices: InvoiceRecord[]; accounts: AccountRecord[]; clients: ClientRecord[]; onCreate: () => void; onStatus: (invoice: InvoiceRecord, status: string) => void; onEdit: (invoice: InvoiceRecord) => void }) {
+  function recipientName(invoice: InvoiceRecord) {
+    const client = clients.find((record) => record.id === invoice.clientId);
+    return invoice.recipientName || client?.name || client?.email || "";
+  }
+  return <div className="space-y-6"><PageTitle eyebrow="Billing operations" title="Invoices with delivery context" detail="Prepare, edit, share, track, and download invoices linked to the work they cover." action={<button onClick={onCreate} className="primary"><Plus size={16} />Create invoice</button>} /><section className="overflow-hidden rounded-xl border border-stone-200 bg-white"><div className="grid grid-cols-[1.2fr_.8fr_.8fr_auto] gap-3 border-b border-stone-100 bg-stone-50 px-5 py-3 text-[10px] font-bold uppercase tracking-[.16em] text-stone-500"><span>Invoice</span><span className="hidden sm:block">Company</span><span>Total</span><span /></div>{invoices.length ? invoices.map((invoice) => { const companyName = invoice.accountName || accountName(accounts, invoice.accountId); const personName = recipientName(invoice); return <div key={invoice.id} className="grid grid-cols-[1.2fr_.8fr_auto] items-center gap-3 border-b border-stone-100 px-5 py-4 last:border-0 sm:grid-cols-[1.2fr_.8fr_.8fr_auto]"><div><strong className="text-sm">{invoice.number || `INV-${invoice.id.slice(0, 6).toUpperCase()}`}</strong><p className="mt-1 text-xs text-stone-500">{invoice.description || "Professional services"} · {invoice.lineItems?.length || 1} charge(s) · due {invoice.dueDate || "on receipt"}</p><p className="mt-1 text-[11px] font-semibold text-stone-600">Sent to: {personName || "Contact not selected"}</p></div><span className="hidden text-xs text-stone-500 sm:block">{companyName}</span><div><strong className="text-sm">{formatMoney(invoiceTotal(invoice), invoice.currency || "ZAR")}</strong><div className="mt-1"><Status status={invoice.status || "draft"} /></div></div><div className="flex flex-wrap items-center justify-end gap-2"><button onClick={() => onEdit(invoice)} className="rounded-lg border border-stone-200 px-2.5 py-2 text-xs font-bold text-stone-700">Edit</button><button onClick={() => downloadInvoicePdf(invoice, companyName, personName, invoice.recipientEmail)} className="rounded-lg border border-stone-200 px-2.5 py-2 text-xs font-bold text-stone-700">PDF</button>{!["paid", "void"].includes(invoice.status || "draft") && <button onClick={() => onStatus(invoice, "paid")} className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100">Mark paid</button>}<select aria-label={`Update status for ${invoice.number || invoice.id}`} value={invoice.status || "draft"} onChange={(event) => onStatus(invoice, event.target.value)} className="rounded-lg border border-stone-200 bg-white px-2 py-2 text-xs font-semibold text-stone-700"><option value="draft">Draft</option><option value="sent">Sent</option><option value="viewed">Viewed</option><option value="partially_paid">Partially paid</option><option value="paid">Paid</option><option value="overdue">Overdue</option><option value="void">Void</option></select></div></div>; }) : <Empty label="No invoices match this view. Create a draft when the project is ready to bill." />}</section></div>;
 }
 
 function SettingsView({ clients, accounts }: { clients: ClientRecord[]; accounts: AccountRecord[] }) {
@@ -688,7 +800,7 @@ function ActivityRow({ activity }: { activity: ActivityRecord }) { return <div c
 function Detail({ label, value }: { label: string; value: string }) { return <div className="rounded-lg bg-stone-50 p-3"><div className="text-[10px] font-bold uppercase tracking-[.16em] text-stone-400">{label}</div><div className="mt-1 text-sm font-semibold text-stone-700">{value}</div></div>; }
 function Empty({ label }: { label: string }) { return <div className="p-10 text-center text-sm leading-6 text-stone-500">{label}</div>; }
 function Banner({ tone, text, onDismiss }: { tone: "success" | "error"; text: string; onDismiss: () => void }) { return <div className={`mb-5 flex items-start justify-between gap-3 rounded-lg border p-3 text-xs font-semibold ${tone === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-800"}`}><span>{text}</span><button onClick={onDismiss} aria-label="Dismiss message"><X size={15} /></button></div>; }
-function Input({ value, onChange, placeholder = "", type = "text", required = false }: { value: string; onChange: (value: string) => void; placeholder?: string; type?: string; required?: boolean }) { return <input required={required} type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="h-11 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm outline-none focus:border-orange-500" />; }
+function Input({ value, onChange, placeholder = "", type = "text", required = false, min, step }: { value: string; onChange: (value: string) => void; placeholder?: string; type?: string; required?: boolean; min?: string; step?: string }) { return <input required={required} type={type} min={min} step={step} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="h-11 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm outline-none focus:border-orange-500" />; }
 function Textarea({ value, onChange, placeholder = "", required = false }: { value: string; onChange: (value: string) => void; placeholder?: string; required?: boolean }) { return <textarea required={required} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="min-h-20 w-full rounded-lg border border-stone-200 bg-stone-50 p-3 text-sm outline-none focus:border-orange-500" />; }
 function Select({ value, onChange, options, placeholder, required = false }: { value: string; onChange: (value: string) => void; options: { value: string; label: string }[]; placeholder?: string; required?: boolean }) { return <select required={required} value={value} onChange={(event) => onChange(event.target.value)} className="h-11 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm outline-none focus:border-orange-500">{placeholder && <option value="">{placeholder}</option>}{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>; }
 function Submit({ busy, label }: { busy: boolean; label: string }) { return <button disabled={busy} className="primary mt-2 w-full justify-center disabled:opacity-60">{busy && <LoaderCircle className="animate-spin" size={16} />}{busy ? "Saving…" : label}</button>; }
@@ -704,4 +816,3 @@ function parseMilestones(value: string) {
     return dueDate ? { title, dueDate } : { title };
   });
 }
-function parseInvoiceLines(value: string, fallbackDescription: string, fallbackAmount: number) { const lines = value.split("\n").map((line) => line.trim()).filter(Boolean).map((line) => { const [description, quantity, unitPrice] = line.split("|").map((item) => item.trim()); return { description: description || fallbackDescription || "Professional services", quantity: Number(quantity || 1), unitPrice: Number(unitPrice || 0) }; }).filter((item) => item.unitPrice >= 0 && item.quantity > 0); return lines.length ? lines : [{ description: fallbackDescription || "Professional services", quantity: 1, unitPrice: fallbackAmount }]; }

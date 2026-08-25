@@ -89,7 +89,10 @@ export type InvoiceLineItem = {
 export type InvoiceRecord = {
   id: string;
   accountId?: string;
+  accountName?: string;
   clientId?: string;
+  recipientName?: string;
+  recipientEmail?: string;
   projectId?: string;
   number?: string;
   status?: InvoiceStatus | string;
@@ -104,6 +107,7 @@ export type InvoiceRecord = {
   amount?: number;
   currency?: string;
   clientVisible?: boolean;
+  paidAt?: unknown;
 };
 
 export type ActivityRecord = {
