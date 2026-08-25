@@ -11,7 +11,7 @@ const founders = [
     bio: "Computer Science student, web developer, and tech entrepreneur based in Cape Town. Virtuo grew out of Samkele's experience building Campus Marketplace — a real platform solving a real student need at the University of the Western Cape. He leads all technical architecture and product development.",
     expertise: ["React / Next.js", "Node.js & APIs", "UI/UX Design", "Web Applications"],
     linkedin: "https://www.linkedin.com/in/samkele-mthuli-9a99ba206/",
-    // photo: "/images/samkele.webp", // uncomment and add photo to public/images/
+    photo: "/images/samkele-mthuli.png",
   },
   {
     name: "Thabo Mithi",
@@ -20,7 +20,7 @@ const founders = [
     bio: "9+ years of enterprise CRM, CDP, and digital transformation experience across Europe and Africa. Thabo has delivered multi-market transformation programmes for Shoprite, Sasol, Mediclinic, and MTN. He leads all strategic consulting engagements at Virtuo.",
     expertise: ["CRM & CDP Strategy", "Digital Transformation", "AI Integration", "Business Analysis"],
     linkedin: "https://www.linkedin.com/in/thabo-mithi-48106329/",
-    // photo: "/images/thabo.webp", // uncomment and add photo to public/images/
+    photo: "/images/thabo-mithi.png",
   },
 ];
 
@@ -55,9 +55,20 @@ export default function About() {
             {founders.map((f) => (
               <div key={f.name} className="p-8 md:p-10 rounded-2xl border border-border bg-secondary/30 flex flex-col gap-6">
                 <div className="flex items-center gap-5">
-                  {/* Photo placeholder — replace src below with real photo when ready */}
-                  <div className="w-20 h-20 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-2xl font-serif font-bold shrink-0 border-2 border-border">
-                    {f.initials}
+                  <div className="w-20 h-20 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-2xl font-serif font-bold shrink-0 overflow-hidden border-2 border-border">
+                    {f.photo ? (
+                      <img
+                        src={f.photo}
+                        alt={`${f.name} portrait`}
+                        width={80}
+                        height={80}
+                        loading="lazy"
+                        decoding="async"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      f.initials
+                    )}
                   </div>
                   <div>
                     <h3 className="text-2xl font-serif">{f.name}</h3>
