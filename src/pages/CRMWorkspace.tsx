@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -58,6 +59,7 @@ import { downloadInvoicePdf, getPdfPageSize } from "@/lib/pdf";
 
 type View = "Overview" | "Accounts" | "Projects" | "Tasks" | "Documents" | "Invoices" | "Settings";
 type ModalKind = "account" | "contact" | "project" | "task" | "document" | "invoice" | "communication" | "share" | null;
+type ProjectForm = { accountId: string; name: string; type: string; status: string; progress: string; dueDate: string; milestones: string; notes: string; teamMembers: string };
 type InvoiceLineItemForm = { description: string; quantity: string; unitPrice: string };
 type InvoiceForm = {
   accountId: string;
@@ -91,6 +93,10 @@ function newInvoiceForm(): InvoiceForm {
   };
 }
 
+function newProjectForm(): ProjectForm {
+  return { accountId: "", name: "", type: "Website", status: "Discovery", progress: "0", dueDate: "", milestones: "", notes: "", teamMembers: "" };
+}
+
 const views: { label: View; icon: typeof LayoutDashboard }[] = [
   { label: "Overview", icon: LayoutDashboard },
   { label: "Accounts", icon: Building2 },
@@ -122,7 +128,8 @@ export default function CRMWorkspace() {
 
   const [accountForm, setAccountForm] = useState({ name: "", industry: "", email: "", phone: "" });
   const [contactForm, setContactForm] = useState({ accountId: "", existingClientId: "", name: "", email: "", phone: "", accessRole: "client" });
-  const [projectForm, setProjectForm] = useState({ accountId: "", name: "", type: "Website", status: "Discovery", progress: "0", dueDate: "", milestones: "", notes: "", teamMembers: "" });
+  const [projectForm, setProjectForm] = useState<ProjectForm>(newProjectForm);
+  const [editingProjectId, setEditingProjectId] = useState("");
   const [taskForm, setTaskForm] = useState({ accountId: "", projectId: "", title: "", dueDate: "", clientVisible: false });
   const [documentForm, setDocumentForm] = useState({ accountId: "", projectId: "", recipientId: "", versionOfId: "", name: "", needsSignature: true, clientVisible: false, signaturePage: "0", signatureX: "52", signatureY: "58", expiresOn: "", file: null as File | null });
   const [documentPreviewUrl, setDocumentPreviewUrl] = useState("");
@@ -369,46 +376,71 @@ export default function CRMWorkspace() {
   async function saveProject(event: FormEvent) {
     event.preventDefault();
     if (!user) {
-      setError("Sign in before creating a project.");
+      setError("Sign in before saving a project.");
       return;
     }
     if (!authorized) {
-      setError("Project creation is available to internal admin or staff accounts only. Clients can view shared project updates in the portal.");
+      setError("Project updates are available to internal admin or staff accounts only. Clients can view shared project updates in the portal.");
       return;
     }
     if (!projectForm.accountId) {
-      setError("Choose an account before creating the project.");
+      setError("Choose an account before saving the project.");
       return;
     }
     if (!projectForm.name.trim()) {
       setError("Enter a project name before saving.");
       return;
     }
+    const progress = Number(projectForm.progress || 0);
+    if (!Number.isFinite(progress) || progress < 0 || progress > 100) {
+      setError("Project progress must be a number between 0 and 100.");
+      return;
+    }
     setBusy(true);
     try {
+      const existingProject = editingProjectId ? projects.find((project) => project.id === editingProjectId) : undefined;
       const accountClient = clients.find((client) => client.accountId === projectForm.accountId);
       const projectName = projectForm.name.trim();
-      const projectRef = await addDoc(collection(db, "projects"), {
+      const projectData = {
         accountId: projectForm.accountId, clientId: accountClient?.id || null, name: projectName, type: projectForm.type,
-        status: projectForm.status, progress: Number(projectForm.progress || 0), dueDate: projectForm.dueDate, clientVisible: true,
+        status: projectForm.status, progress, dueDate: projectForm.dueDate, clientVisible: existingProject?.clientVisible ?? true,
         milestones: parseMilestones(projectForm.milestones), teamMembers: splitValues(projectForm.teamMembers),
-        createdBy: user.uid, createdAt: serverTimestamp(),
-      });
-      if (projectForm.notes.trim()) await setDoc(doc(db, "projectNotes", projectRef.id), { projectId: projectRef.id, accountId: projectForm.accountId, text: projectForm.notes.trim(), createdBy: user.uid, createdAt: serverTimestamp() });
-      await addActivity(projectForm.accountId, "project_created", `${projectName} was added to the project plan.`, true, projectRef.id);
+      };
+      const projectRef = existingProject ? doc(db, "projects", existingProject.id) : doc(collection(db, "projects"));
+      if (existingProject) {
+        await updateDoc(projectRef, { ...projectData, updatedBy: user.uid, updatedAt: serverTimestamp() });
+      } else {
+        await setDoc(projectRef, { ...projectData, createdBy: user.uid, createdAt: serverTimestamp() });
+      }
+      const projectNoteRef = doc(db, "projectNotes", projectRef.id);
+      if (projectForm.notes.trim()) {
+        await setDoc(projectNoteRef, {
+          projectId: projectRef.id, accountId: projectForm.accountId, text: projectForm.notes.trim(),
+          ...(existingProject ? { updatedBy: user.uid, updatedAt: serverTimestamp() } : { createdBy: user.uid, createdAt: serverTimestamp() }),
+        }, { merge: true });
+      } else if (existingProject) {
+        await deleteDoc(projectNoteRef);
+      }
+      await addActivity(projectForm.accountId, existingProject ? "project_updated" : "project_created", `${projectName} was ${existingProject ? "updated in" : "added to"} the project plan.`, true, projectRef.id);
       let share: { shareId: string; pin: string } | null = null;
       let shareError = "";
-      try {
-        const createShare = httpsCallable<{ projectId: string }, { shareId: string; pin: string }>(functions, "createProjectShare");
-        const shareResult = await createShare({ projectId: projectRef.id });
-        share = shareResult.data;
-      } catch (error) {
-        shareError = error instanceof Error ? error.message : "The private-link function is unavailable.";
+      if (!existingProject) {
+        try {
+          const createShare = httpsCallable<{ projectId: string }, { shareId: string; pin: string }>(functions, "createProjectShare");
+          const shareResult = await createShare({ projectId: projectRef.id });
+          share = shareResult.data;
+        } catch (error) {
+          shareError = error instanceof Error ? error.message : "The private-link function is unavailable.";
+        }
       }
-      setProjectForm({ accountId: "", name: "", type: "Website", status: "Discovery", progress: "0", dueDate: "", milestones: "", notes: "", teamMembers: "" });
+      setProjectForm(newProjectForm());
+      setEditingProjectId("");
       if (share) {
         setShareCredentials({ projectName, ...share });
         setModal("share");
+      } else if (existingProject) {
+        setMessage(`${projectName} was updated.`);
+        resetAndClose();
       } else {
         setMessage(`${projectName} was created. The private project link could not be generated yet.`);
         setError(`Deploy the Firebase Functions configuration before creating private links. ${shareError}`);
@@ -417,7 +449,7 @@ export default function CRMWorkspace() {
       await loadWorkspace();
     } catch (error) {
       const reason = error instanceof Error ? ` ${error.message}` : "";
-      setError(`The project could not be created. Check the deployed Firestore rules and your internal user role.${reason}`);
+      setError(`The project could not be saved. Check the deployed Firestore rules and your internal user role.${reason}`);
       setBusy(false);
     }
   }
@@ -596,6 +628,28 @@ export default function CRMWorkspace() {
     setModal("invoice");
   }
 
+  function createProject() {
+    setEditingProjectId("");
+    setProjectForm(newProjectForm());
+    setModal("project");
+  }
+
+  function editProject(project: ProjectRecord) {
+    setEditingProjectId(project.id);
+    setProjectForm({
+      accountId: project.accountId || "",
+      name: project.name || "",
+      type: project.type || "Website",
+      status: project.status || "Discovery",
+      progress: String(project.progress || 0),
+      dueDate: project.dueDate || project.due || "",
+      milestones: (project.milestones || []).map((milestone) => `${milestone.title}${milestone.dueDate ? ` | ${milestone.dueDate}` : ""}`).join("\n"),
+      notes: project.notes || "",
+      teamMembers: (project.teamMembers || []).join(", "),
+    });
+    setModal("project");
+  }
+
   async function saveCommunication(event: FormEvent) {
     event.preventDefault();
     if (!communicationForm.accountId || !communicationForm.message.trim()) return;
@@ -661,7 +715,7 @@ export default function CRMWorkspace() {
 
           {view === "Overview" && <Overview accounts={accounts} projects={activeProjects} tasks={tasks} invoices={openInvoices} activities={activities} onCreate={setModal} onView={setView} />}
           {view === "Accounts" && <AccountsView accounts={visibleAccounts} clients={clients} selected={selectedAccount} activities={currentAccountActivities} projects={projects} canLinkClients={authorized} onCreate={() => setModal("account")} onSelect={setSelectedAccountId} onLink={() => setModal("contact")} onLogCommunication={() => setModal("communication" as ModalKind)} />}
-          {view === "Projects" && <ProjectsView projects={visibleProjects} accounts={accounts} documents={documents} onCreate={() => setModal("project")} onShare={(project) => void createProjectShare(project)} onDisableShare={(project) => void disableProjectShare(project)} onAddDocument={addProjectDocument} />}
+          {view === "Projects" && <ProjectsView projects={visibleProjects} accounts={accounts} documents={documents} onCreate={createProject} onEdit={editProject} onShare={(project) => void createProjectShare(project)} onDisableShare={(project) => void disableProjectShare(project)} onAddDocument={addProjectDocument} />}
           {view === "Tasks" && <TasksView tasks={visibleTasks} projects={projects} accounts={accounts} onCreate={() => setModal("task")} onUpdate={updateTaskStatus} />}
           {view === "Documents" && <DocumentsView documents={visibleDocuments} accounts={accounts} projects={projects} onCreate={() => setModal("document")} onDownload={downloadDocument} onShare={shareDocument} />}
           {view === "Invoices" && <InvoicesView invoices={visibleInvoices} accounts={accounts} clients={clients} onCreate={createInvoice} onStatus={updateInvoiceStatus} onEdit={editInvoice} />}
@@ -671,7 +725,7 @@ export default function CRMWorkspace() {
 
       {modal === "account" && <Modal title="Create an account" onClose={resetAndClose}><form onSubmit={saveAccount} className="space-y-3"><Input value={accountForm.name} onChange={(value) => setAccountForm({ ...accountForm, name: value })} placeholder="Company or account name" required /><Input value={accountForm.industry} onChange={(value) => setAccountForm({ ...accountForm, industry: value })} placeholder="Industry" /><Input type="email" value={accountForm.email} onChange={(value) => setAccountForm({ ...accountForm, email: value })} placeholder="Primary email" /><Input value={accountForm.phone} onChange={(value) => setAccountForm({ ...accountForm, phone: value })} placeholder="Primary phone" /><Submit busy={busy} label="Create account" /></form></Modal>}
       {modal === "contact" && <Modal title="Link a client contact" onClose={resetAndClose}><form onSubmit={saveContact} className="space-y-3"><Select value={contactForm.accountId} onChange={(value) => setContactForm({ ...contactForm, accountId: value })} options={accounts.map((account) => ({ value: account.id, label: account.name }))} placeholder="Choose account" required /><Select value={contactForm.existingClientId} onChange={(value) => setContactForm({ ...contactForm, existingClientId: value })} options={clients.filter((client) => !client.accountId).map((client) => ({ value: client.id, label: client.name || client.email || client.id }))} placeholder="Link an existing login (optional)" /><Select value={contactForm.accessRole} onChange={(value) => setContactForm({ ...contactForm, accessRole: value })} options={[{ value: "client", label: "Client contact" }, { value: "project_contact", label: "Project contact" }, { value: "billing_contact", label: "Billing contact" }]} />{!contactForm.existingClientId && <><Input value={contactForm.name} onChange={(value) => setContactForm({ ...contactForm, name: value })} placeholder="Contact name" /><Input type="email" value={contactForm.email} onChange={(value) => setContactForm({ ...contactForm, email: value })} placeholder="Contact email" /><Input value={contactForm.phone} onChange={(value) => setContactForm({ ...contactForm, phone: value })} placeholder="Phone number" /><p className="rounded-lg bg-orange-50 p-3 text-xs leading-5 text-orange-800">We’ll email this client a secure link to create their own portal password. You will not need to handle their password.</p></>}<p className="text-xs leading-5 text-stone-500">Client contacts have portal-only access to their account’s client-visible records. Internal staff access is managed by administrator-assigned staff profiles.</p><Submit busy={busy} label={contactForm.existingClientId ? "Link contact" : "Create and send invite"} /></form></Modal>}
-      {modal === "project" && <Modal title="Create a project" onClose={resetAndClose}><form onSubmit={saveProject} className="space-y-3"><Select value={projectForm.accountId} onChange={(value) => setProjectForm({ ...projectForm, accountId: value })} options={accounts.map((account) => ({ value: account.id, label: account.name }))} placeholder="Choose account" required /><Input value={projectForm.name} onChange={(value) => setProjectForm({ ...projectForm, name: value })} placeholder="Project name" required /><Select value={projectForm.type} onChange={(value) => setProjectForm({ ...projectForm, type: value })} options={["Website", "Brand identity", "SEO", "Campaign", "Consulting", "Other"].map((value) => ({ value, label: value }))} /><Select value={projectForm.status} onChange={(value) => setProjectForm({ ...projectForm, status: value })} options={["Discovery", "Design", "In build", "Review", "On hold", "Completed"].map((value) => ({ value, label: value }))} /><div className="grid grid-cols-2 gap-3"><Input type="number" value={projectForm.progress} onChange={(value) => setProjectForm({ ...projectForm, progress: value })} placeholder="Progress %" /><Input type="date" value={projectForm.dueDate} onChange={(value) => setProjectForm({ ...projectForm, dueDate: value })} /></div><Textarea value={projectForm.milestones} onChange={(value) => setProjectForm({ ...projectForm, milestones: value })} placeholder="Milestones — one per line: Title | YYYY-MM-DD" /><Textarea value={projectForm.teamMembers} onChange={(value) => setProjectForm({ ...projectForm, teamMembers: value })} placeholder="Assigned team members (comma-separated)" /><Textarea value={projectForm.notes} onChange={(value) => setProjectForm({ ...projectForm, notes: value })} placeholder="Internal project notes" /><Submit busy={busy} label="Create project" /></form></Modal>}
+      {modal === "project" && <Modal title={editingProjectId ? "Edit project" : "Create a project"} onClose={resetAndClose}><form onSubmit={saveProject} className="space-y-3"><Select value={projectForm.accountId} onChange={(value) => setProjectForm({ ...projectForm, accountId: value })} options={accounts.map((account) => ({ value: account.id, label: account.name }))} placeholder="Choose account" required disabled={Boolean(editingProjectId)} /><Input value={projectForm.name} onChange={(value) => setProjectForm({ ...projectForm, name: value })} placeholder="Project name" required /><Select value={projectForm.type} onChange={(value) => setProjectForm({ ...projectForm, type: value })} options={["Website", "Brand identity", "SEO", "Campaign", "Consulting", "Other"].map((value) => ({ value, label: value }))} /><Select value={projectForm.status} onChange={(value) => setProjectForm({ ...projectForm, status: value })} options={["Discovery", "Design", "In progress", "In build", "Review", "On hold", "Completed", "Archived"].map((value) => ({ value, label: value }))} /><div className="grid grid-cols-2 gap-3"><Input type="number" min="0" max="100" value={projectForm.progress} onChange={(value) => setProjectForm({ ...projectForm, progress: value })} placeholder="Progress %" /><Input type="date" value={projectForm.dueDate} onChange={(value) => setProjectForm({ ...projectForm, dueDate: value })} /></div><Textarea value={projectForm.milestones} onChange={(value) => setProjectForm({ ...projectForm, milestones: value })} placeholder="Milestones — one per line: Title | YYYY-MM-DD" /><Textarea value={projectForm.teamMembers} onChange={(value) => setProjectForm({ ...projectForm, teamMembers: value })} placeholder="Assigned team members (comma-separated)" /><Textarea value={projectForm.notes} onChange={(value) => setProjectForm({ ...projectForm, notes: value })} placeholder="Internal project notes" /><Submit busy={busy} label={editingProjectId ? "Save project changes" : "Create project"} /></form></Modal>}
       {modal === "task" && <Modal title="Add a delivery task" onClose={resetAndClose}><form onSubmit={saveTask} className="space-y-3"><Select value={taskForm.accountId} onChange={(value) => setTaskForm({ ...taskForm, accountId: value, projectId: "" })} options={accounts.map((account) => ({ value: account.id, label: account.name }))} placeholder="Choose account" required /><Select value={taskForm.projectId} onChange={(value) => setTaskForm({ ...taskForm, projectId: value })} options={projects.filter((project) => project.accountId === taskForm.accountId).map((project) => ({ value: project.id, label: project.name }))} placeholder="Linked project (optional)" /><Input value={taskForm.title} onChange={(value) => setTaskForm({ ...taskForm, title: value })} placeholder="Task title" required /><Input type="date" value={taskForm.dueDate} onChange={(value) => setTaskForm({ ...taskForm, dueDate: value })} /><label className="flex items-center gap-2 rounded-lg bg-stone-50 p-3 text-xs font-semibold text-stone-600"><input type="checkbox" checked={taskForm.clientVisible} onChange={(event) => setTaskForm({ ...taskForm, clientVisible: event.target.checked })} />Show this task in the client portal</label><Submit busy={busy} label="Add task" /></form></Modal>}
       {modal === "document" && (
         <Modal title="Share a document" onClose={resetAndClose}>
@@ -753,8 +807,8 @@ function AccountsView({ accounts, clients, selected, activities, projects, canLi
   return <div className="space-y-6"><PageTitle eyebrow="Relationship management" title="Accounts and stakeholders" detail="Every project, document, invoice, and client login is linked to an account." action={<div className="flex gap-2"><button onClick={onLogCommunication} className="secondary"><Bell size={15} />Log note</button>{canLinkClients && <button onClick={onLink} className="secondary"><Link2 size={15} />Link client</button>}<button onClick={onCreate} className="primary"><Plus size={16} />New account</button></div>} /><div className="grid gap-5 xl:grid-cols-[.95fr_1.05fr]"><section className="overflow-hidden rounded-xl border border-stone-200 bg-white"><div className="border-b border-stone-100 p-4 text-sm font-bold">{accounts.length} accounts</div><div className="divide-y divide-stone-100">{accounts.length ? accounts.map((account) => <button onClick={() => onSelect(account.id)} key={account.id} className={`block w-full p-4 text-left transition hover:bg-stone-50 ${selected?.id === account.id ? "bg-orange-50" : ""}`}><div className="flex items-center justify-between"><strong className="text-sm">{account.name}</strong><Status status={account.status || "active"} /></div><p className="mt-1 text-xs text-stone-500">{account.industry || "General account"} · {account.primaryEmail || "No primary email"}</p><div className="mt-3 text-[11px] font-semibold text-stone-500">{clients.filter((client) => client.accountId === account.id).length} linked contact(s) · {projects.filter((project) => project.accountId === account.id).length} project(s)</div></button>) : <Empty label="Create your first account to begin building the CRM." />}</div></section><section className="rounded-xl border border-stone-200 bg-white p-5">{selected ? <><div className="flex items-start justify-between"><div><div className="text-[10px] font-bold uppercase tracking-[.18em] text-orange-700">Account record</div><h2 className="mt-2 font-serif text-3xl font-bold">{selected.name}</h2><p className="mt-1 text-sm text-stone-500">{selected.industry || "No industry recorded"}</p></div><Status status={selected.status || "active"} /></div><div className="mt-6 grid gap-3 sm:grid-cols-2"><Detail label="Primary email" value={selected.primaryEmail || "Not set"} /><Detail label="Primary phone" value={selected.primaryPhone || "Not set"} /><Detail label="Contacts" value={`${clients.filter((client) => client.accountId === selected.id).length} linked login(s)`} /><Detail label="Projects" value={`${projects.filter((project) => project.accountId === selected.id).length} linked project(s)`} /></div><div className="mt-6"><h3 className="font-serif text-xl font-bold">Contacts and access</h3><div className="mt-3 space-y-2">{clients.filter((client) => client.accountId === selected.id).map((client) => <div key={client.id} className="flex items-center justify-between rounded-lg bg-stone-50 p-3 text-xs"><span><strong>{client.name || client.email || client.id}</strong>{client.email ? ` · ${client.email}` : ""}</span><Status status={client.accountAccessRole || "client"} /></div>) || <Empty label="No contacts linked." />}</div></div><div className="mt-7 border-t border-stone-100 pt-5"><h3 className="font-serif text-xl font-bold">Account timeline</h3><div className="mt-3 divide-y divide-stone-100">{activities.length ? activities.slice(0, 6).map((activity) => <ActivityRow key={activity.id} activity={activity} />) : <Empty label="Activity for this account will appear here." />}</div></div></> : <Empty label="Select an account to view its contacts, linked projects, and timeline." />}</section></div></div>;
 }
 
-function ProjectsView({ projects, accounts, documents, onCreate, onShare, onDisableShare, onAddDocument }: { projects: ProjectRecord[]; accounts: AccountRecord[]; documents: DocumentRecord[]; onCreate: () => void; onShare: (project: ProjectRecord) => void; onDisableShare: (project: ProjectRecord) => void; onAddDocument: (project: ProjectRecord) => void }) {
-  return <div className="space-y-6"><PageTitle eyebrow="Delivery management" title="Projects with context" detail="Create a private project link, attach documents, and share only what your client needs to see." action={<button onClick={onCreate} className="primary"><Plus size={16} />New project</button>} /><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{projects.length ? projects.map((project) => <article key={project.id} className="rounded-xl border border-stone-200 bg-white p-5 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-stone-200/40"><div className="flex items-start justify-between"><Status status={project.status || "Discovery"} /><span className="text-xs font-bold text-stone-400">{project.progress || 0}%</span></div><h2 className="mt-6 font-serif text-2xl font-bold">{project.name}</h2><p className="mt-1 text-sm text-stone-500">{project.type || "Project"} · {accountName(accounts, project.accountId)}</p><div className="mt-7 h-2 overflow-hidden rounded-full bg-stone-100"><div className="h-full rounded-full bg-orange-500" style={{ width: `${Math.min(project.progress || 0, 100)}%` }} /></div><div className="mt-4 flex justify-between text-xs text-stone-500"><span>Target date</span><strong className="text-stone-800">{project.dueDate || project.due || "Not scheduled"}</strong></div>{project.milestones?.length ? <div className="mt-4 border-t border-stone-100 pt-3"><div className="text-[10px] font-bold uppercase tracking-wide text-stone-400">Milestones</div>{project.milestones.slice(0, 3).map((milestone, index) => <div key={`${milestone.title}-${index}`} className="mt-2 text-xs text-stone-600">• {milestone.title}{milestone.dueDate ? ` · ${milestone.dueDate}` : ""}</div>)}</div> : null}<p className="mt-4 text-xs font-semibold text-stone-500">{documents.filter((document) => document.projectId === project.id).length} linked file(s)</p><div className="mt-4 flex flex-wrap gap-2"><button onClick={() => onAddDocument(project)} className="secondary"><CloudUpload size={14} />Add document</button><button onClick={() => onShare(project)} className="secondary"><Link2 size={14} />{project.shareEnabled ? "Rotate PIN" : "Create link"}</button>{project.shareEnabled && <button onClick={() => onDisableShare(project)} className="secondary text-red-700"><Lock size={14} />Disable</button>}</div></article>) : <Empty label="No projects match this view. Create a project from an account to start delivery." />}</div></div>;
+function ProjectsView({ projects, accounts, documents, onCreate, onEdit, onShare, onDisableShare, onAddDocument }: { projects: ProjectRecord[]; accounts: AccountRecord[]; documents: DocumentRecord[]; onCreate: () => void; onEdit: (project: ProjectRecord) => void; onShare: (project: ProjectRecord) => void; onDisableShare: (project: ProjectRecord) => void; onAddDocument: (project: ProjectRecord) => void }) {
+  return <div className="space-y-6"><PageTitle eyebrow="Delivery management" title="Projects with context" detail="Create a private project link, attach documents, and share only what your client needs to see." action={<button onClick={onCreate} className="primary"><Plus size={16} />New project</button>} /><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{projects.length ? projects.map((project) => <article key={project.id} className="rounded-xl border border-stone-200 bg-white p-5 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-stone-200/40"><div className="flex items-start justify-between"><Status status={project.status || "Discovery"} /><span className="text-xs font-bold text-stone-400">{project.progress || 0}%</span></div><h2 className="mt-6 font-serif text-2xl font-bold">{project.name}</h2><p className="mt-1 text-sm text-stone-500">{project.type || "Project"} · {accountName(accounts, project.accountId)}</p><div className="mt-7 h-2 overflow-hidden rounded-full bg-stone-100"><div className="h-full rounded-full bg-orange-500" style={{ width: `${Math.min(project.progress || 0, 100)}%` }} /></div><div className="mt-4 flex justify-between text-xs text-stone-500"><span>Target date</span><strong className="text-stone-800">{project.dueDate || project.due || "Not scheduled"}</strong></div>{project.milestones?.length ? <div className="mt-4 border-t border-stone-100 pt-3"><div className="text-[10px] font-bold uppercase tracking-wide text-stone-400">Milestones</div>{project.milestones.slice(0, 3).map((milestone, index) => <div key={`${milestone.title}-${index}`} className="mt-2 text-xs text-stone-600">• {milestone.title}{milestone.dueDate ? ` · ${milestone.dueDate}` : ""}</div>)}</div> : null}<p className="mt-4 text-xs font-semibold text-stone-500">{documents.filter((document) => document.projectId === project.id).length} linked file(s)</p><div className="mt-4 flex flex-wrap gap-2"><button onClick={() => onEdit(project)} className="secondary">Edit project</button><button onClick={() => onAddDocument(project)} className="secondary"><CloudUpload size={14} />Add document</button><button onClick={() => onShare(project)} className="secondary"><Link2 size={14} />{project.shareEnabled ? "Rotate PIN" : "Create link"}</button>{project.shareEnabled && <button onClick={() => onDisableShare(project)} className="secondary text-red-700"><Lock size={14} />Disable</button>}</div></article>) : <Empty label="No projects match this view. Create a project from an account to start delivery." />}</div></div>;
 }
 
 function TasksView({ tasks, projects, accounts, onCreate, onUpdate }: { tasks: TaskRecord[]; projects: ProjectRecord[]; accounts: AccountRecord[]; onCreate: () => void; onUpdate: (task: TaskRecord, status: NonNullable<TaskRecord["status"]>) => void }) {
@@ -800,9 +854,9 @@ function ActivityRow({ activity }: { activity: ActivityRecord }) { return <div c
 function Detail({ label, value }: { label: string; value: string }) { return <div className="rounded-lg bg-stone-50 p-3"><div className="text-[10px] font-bold uppercase tracking-[.16em] text-stone-400">{label}</div><div className="mt-1 text-sm font-semibold text-stone-700">{value}</div></div>; }
 function Empty({ label }: { label: string }) { return <div className="p-10 text-center text-sm leading-6 text-stone-500">{label}</div>; }
 function Banner({ tone, text, onDismiss }: { tone: "success" | "error"; text: string; onDismiss: () => void }) { return <div className={`mb-5 flex items-start justify-between gap-3 rounded-lg border p-3 text-xs font-semibold ${tone === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-800"}`}><span>{text}</span><button onClick={onDismiss} aria-label="Dismiss message"><X size={15} /></button></div>; }
-function Input({ value, onChange, placeholder = "", type = "text", required = false, min, step }: { value: string; onChange: (value: string) => void; placeholder?: string; type?: string; required?: boolean; min?: string; step?: string }) { return <input required={required} type={type} min={min} step={step} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="h-11 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm outline-none focus:border-orange-500" />; }
+function Input({ value, onChange, placeholder = "", type = "text", required = false, min, max, step }: { value: string; onChange: (value: string) => void; placeholder?: string; type?: string; required?: boolean; min?: string; max?: string; step?: string }) { return <input required={required} type={type} min={min} max={max} step={step} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="h-11 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm outline-none focus:border-orange-500" />; }
 function Textarea({ value, onChange, placeholder = "", required = false }: { value: string; onChange: (value: string) => void; placeholder?: string; required?: boolean }) { return <textarea required={required} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="min-h-20 w-full rounded-lg border border-stone-200 bg-stone-50 p-3 text-sm outline-none focus:border-orange-500" />; }
-function Select({ value, onChange, options, placeholder, required = false }: { value: string; onChange: (value: string) => void; options: { value: string; label: string }[]; placeholder?: string; required?: boolean }) { return <select required={required} value={value} onChange={(event) => onChange(event.target.value)} className="h-11 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm outline-none focus:border-orange-500">{placeholder && <option value="">{placeholder}</option>}{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>; }
+function Select({ value, onChange, options, placeholder, required = false, disabled = false }: { value: string; onChange: (value: string) => void; options: { value: string; label: string }[]; placeholder?: string; required?: boolean; disabled?: boolean }) { return <select required={required} disabled={disabled} value={value} onChange={(event) => onChange(event.target.value)} className="h-11 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm outline-none focus:border-orange-500 disabled:cursor-not-allowed disabled:opacity-60">{placeholder && <option value="">{placeholder}</option>}{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>; }
 function Submit({ busy, label }: { busy: boolean; label: string }) { return <button disabled={busy} className="primary mt-2 w-full justify-center disabled:opacity-60">{busy && <LoaderCircle className="animate-spin" size={16} />}{busy ? "Saving…" : label}</button>; }
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) { return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"><div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl bg-white p-5 shadow-2xl sm:p-6"><div className="flex items-center justify-between"><h2 className="font-serif text-2xl font-bold">{title}</h2><button onClick={onClose} aria-label="Close dialog" className="rounded-md p-1 text-stone-400 hover:bg-stone-100"><X size={18} /></button></div><div className="mt-5">{children}</div></div></div>; }
 function LoadingScreen({ label }: { label: string }) { return <div className="flex min-h-screen items-center justify-center bg-[#f6f5f1] text-sm font-semibold text-stone-500"><LoaderCircle className="mr-2 animate-spin" size={17} />{label}</div>; }

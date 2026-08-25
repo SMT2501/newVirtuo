@@ -21,7 +21,6 @@ export default function Home() {
             height={873}
             loading="eager"
             decoding="async"
-            fetchPriority="high"
             className="w-full h-full object-cover object-center opacity-40 scale-105"
           />
           <div className="absolute inset-0 bg-linear-to-t from-background via-background/60 to-transparent mix-blend-multiply" />
