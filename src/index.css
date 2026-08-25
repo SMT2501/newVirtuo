@@ -95,6 +95,25 @@
   }
 }
 
+@layer components {
+  .primary,
+  .secondary {
+    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-3.5 py-2.5 text-sm font-bold whitespace-nowrap transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .primary {
+    @apply bg-[#1b211d] text-white shadow-sm shadow-stone-900/10 hover:bg-[#2b352f] active:translate-y-px;
+  }
+
+  .secondary {
+    @apply border border-stone-200 bg-white text-stone-700 shadow-sm shadow-stone-900/5 hover:border-stone-300 hover:bg-stone-50 active:translate-y-px;
+  }
+
+  .crm-icon-button {
+    @apply inline-flex size-10 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-500 shadow-sm shadow-stone-900/5 transition hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 active:translate-y-px;
+  }
+}
+
 .text-balance {
   text-wrap: balance;
 }
