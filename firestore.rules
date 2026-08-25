@@ -21,6 +21,14 @@ service cloud.firestore {
       return signedIn() && clientId == request.auth.uid;
     }
 
+    // Legacy records predate account membership. Once a document is linked to
+    // an account, ownerId must never bypass that account's access checks.
+    function legacyDocumentOwner(data) {
+      return signedIn()
+        && !('accountId' in data)
+        && data.ownerId == request.auth.uid;
+    }
+
     function documentRecipient(data) {
       return signedIn()
         && data.clientVisible == true
@@ -72,11 +80,11 @@ service cloud.firestore {
 
     match /documents/{documentId} {
       allow read: if internalUser()
-        || legacyClient(resource.data.ownerId)
+        || legacyDocumentOwner(resource.data)
         || (resource.data.clientVisible == true && documentRecipient(resource.data))
         || projectDocumentVisitor(resource.data);
       allow create: if internalUser()
-        || legacyClient(request.resource.data.ownerId)
+        || legacyDocumentOwner(request.resource.data)
         || (accountMember(request.resource.data.accountId) && request.resource.data.uploaderId == request.auth.uid);
       allow update: if internalUser()
         || (
