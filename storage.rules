@@ -48,8 +48,24 @@ service firebase.storage {
         && projectVisitor(firestore.get(/databases/(default)/documents/documents/$(documentId)).data.projectId);
     }
 
+    function documentShareVisitor(accountId, documentId) {
+      return signedIn()
+        && firestore.exists(/databases/(default)/documents/documents/$(documentId))
+        && firestore.get(/databases/(default)/documents/documents/$(documentId)).data.accountId == accountId
+        && firestore.get(/databases/(default)/documents/documents/$(documentId)).data.clientVisible == true
+        && firestore.get(/databases/(default)/documents/documents/$(documentId)).data.signingShareEnabled == true
+        && firestore.get(/databases/(default)/documents/documents/$(documentId)).data.needsSignature == true
+        && firestore.get(/databases/(default)/documents/documents/$(documentId)).data.contentType == 'application/pdf'
+        && firestore.get(/databases/(default)/documents/documents/$(documentId)).data.storagePath != null
+        && firestore.get(/databases/(default)/documents/documents/$(documentId)).data.status in ['awaiting_signature', 'signed']
+        && (!('expiresAt' in firestore.get(/databases/(default)/documents/documents/$(documentId)).data) || firestore.get(/databases/(default)/documents/documents/$(documentId)).data.expiresAt == null || firestore.get(/databases/(default)/documents/documents/$(documentId)).data.expiresAt > request.time)
+        && firestore.exists(/databases/(default)/documents/documents/$(documentId)/access/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/documents/$(documentId)/access/$(request.auth.uid)).data.expiresAt > request.time
+        && firestore.get(/databases/(default)/documents/documents/$(documentId)/access/$(request.auth.uid)).data.shareVersion == firestore.get(/databases/(default)/documents/documents/$(documentId)).data.signingShareVersion;
+    }
+
     match /accounts/{accountId}/documents/{documentId}/{fileName} {
-      allow read: if internalUser() || documentRecipient(accountId, documentId) || projectDocumentVisitor(accountId, documentId);
+      allow read: if internalUser() || documentRecipient(accountId, documentId) || projectDocumentVisitor(accountId, documentId) || documentShareVisitor(accountId, documentId);
       allow create: if internalUser()
         || (accountMember(accountId) && fileName.matches('client-.*'))
         && request.resource.size < 20 * 1024 * 1024

@@ -69,6 +69,72 @@ export const revokeProjectShare = onCall(async (request) => {
   return { revoked: true };
 });
 
+export const createDocumentShare = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in as an internal user first.");
+  await requireInternalUser(request.auth.uid);
+  const documentId = String(request.data?.documentId || "");
+  if (!documentId) throw new HttpsError("invalid-argument", "A document is required.");
+
+  const documentRef = db.doc(`documents/${documentId}`);
+  const shareId = createShareId();
+  const pin = createPin();
+  const result = await db.runTransaction(async (transaction) => {
+    const record = await transaction.get(documentRef);
+    if (!record.exists) throw new HttpsError("not-found", "Document not found.");
+    const data = record.data();
+    if (data.status !== "awaiting_signature" || data.needsSignature !== true
+      || data.clientVisible !== true || data.contentType !== "application/pdf" || !data.storagePath) {
+      throw new HttpsError("failed-precondition", "Only client-visible PDF signature requests can receive a signing link.");
+    }
+    if (data.expiresAt && data.expiresAt.toMillis() <= Date.now()) {
+      throw new HttpsError("failed-precondition", "This signature request has expired.");
+    }
+
+    const shareVersion = Number(data.signingShareVersion || 0) + 1;
+    transaction.update(documentRef, {
+      signingShareId: shareId,
+      signingShareEnabled: true,
+      signingShareVersion: shareVersion,
+      signingShareUpdatedAt: FieldValue.serverTimestamp(),
+      signingShareUpdatedBy: request.auth.uid,
+      lastSharedAt: FieldValue.serverTimestamp(),
+      lastSharedBy: request.auth.uid,
+    });
+    transaction.set(documentRef.collection("private").doc("signingShare"), {
+      pinHash: hashPin(shareId, pin),
+      shareVersion,
+      updatedAt: FieldValue.serverTimestamp(),
+      updatedBy: request.auth.uid,
+    });
+    transaction.set(db.collection("documentEvents").doc(), {
+      accountId: data.accountId,
+      documentId,
+      eventType: "signing_link_created",
+      actorId: request.auth.uid,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return { shareVersion };
+  });
+  return { shareId, pin, shareVersion: result.shareVersion };
+});
+
+export const revokeDocumentShare = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in as an internal user first.");
+  await requireInternalUser(request.auth.uid);
+  const documentId = String(request.data?.documentId || "");
+  if (!documentId) throw new HttpsError("invalid-argument", "A document is required.");
+  const documentRef = db.doc(`documents/${documentId}`);
+  const record = await documentRef.get();
+  if (!record.exists) throw new HttpsError("not-found", "Document not found.");
+  await documentRef.update({
+    signingShareEnabled: false,
+    signingShareVersion: FieldValue.increment(1),
+    signingShareUpdatedAt: FieldValue.serverTimestamp(),
+    signingShareUpdatedBy: request.auth.uid,
+  });
+  return { revoked: true };
+});
+
 export const unlockProjectShare = onCall(async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "A temporary project session is required.");
   const shareId = String(request.data?.shareId || "");
@@ -92,6 +158,43 @@ export const unlockProjectShare = onCall(async (request) => {
   return { projectId: project.id, expiresAt: expiresAt.toMillis() };
 });
 
+export const unlockDocumentShare = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "A temporary signing session is required.");
+  const shareId = String(request.data?.shareId || "");
+  const pin = String(request.data?.pin || "");
+  if (!shareId || pin.length < 8) throw new HttpsError("invalid-argument", "Enter the document PIN.");
+
+  const documents = await db.collection("documents").where("signingShareId", "==", shareId).limit(1).get();
+  if (documents.empty) throw new HttpsError("not-found", "This signing link is invalid.");
+  const document = documents.docs[0];
+  const data = document.data();
+  const shareConfig = await document.ref.collection("private").doc("signingShare").get();
+  const config = shareConfig.data();
+  if (!data.signingShareEnabled || !config
+    || config.shareVersion !== data.signingShareVersion
+    || hashPin(shareId, pin) !== config.pinHash) {
+    throw new HttpsError("permission-denied", "The document PIN is incorrect or signing access is disabled.");
+  }
+  if (data.status !== "awaiting_signature" && data.status !== "signed") {
+    throw new HttpsError("failed-precondition", "This document is no longer available for signing.");
+  }
+  if (data.clientVisible !== true || data.needsSignature !== true
+    || data.contentType !== "application/pdf" || !data.storagePath) {
+    throw new HttpsError("failed-precondition", "This document is not available through this signing link.");
+  }
+  if (data.expiresAt && data.expiresAt.toMillis() <= Date.now()) {
+    throw new HttpsError("failed-precondition", "This signature request has expired.");
+  }
+
+  const expiresAt = Timestamp.fromMillis(Date.now() + ACCESS_TTL_MS);
+  await document.ref.collection("access").doc(request.auth.uid).set({
+    shareVersion: Number(data.signingShareVersion || 0),
+    expiresAt,
+    unlockedAt: FieldValue.serverTimestamp(),
+  });
+  return { documentId: document.id, expiresAt: expiresAt.toMillis() };
+});
+
 async function requireActiveProjectAccess(projectId, uid) {
   const [project, access] = await Promise.all([
     db.doc(`projects/${projectId}`).get(),
@@ -101,6 +204,18 @@ async function requireActiveProjectAccess(projectId, uid) {
     || access.data().expiresAt.toMillis() <= Date.now()
     || access.data().shareVersion !== project.data().shareVersion) {
     throw new HttpsError("permission-denied", "Your project access has expired. Re-enter the project PIN.");
+  }
+}
+
+async function requireActiveDocumentAccess(documentId, uid) {
+  const [document, access] = await Promise.all([
+    db.doc(`documents/${documentId}`).get(),
+    db.doc(`documents/${documentId}/access/${uid}`).get(),
+  ]);
+  if (!document.exists || !access.exists || !document.data().signingShareEnabled
+    || access.data().expiresAt.toMillis() <= Date.now()
+    || access.data().shareVersion !== document.data().signingShareVersion) {
+    throw new HttpsError("permission-denied", "Your signing access has expired. Re-enter the document PIN.");
   }
 }
 
@@ -138,9 +253,14 @@ export const signDocument = onCall(async (request) => {
   try {
     await requireDocumentRecipient(data, request.auth.uid);
   } catch (recipientError) {
-    if (!data.projectId) throw recipientError;
-    await requireActiveProjectAccess(data.projectId, request.auth.uid);
-    authorizationMode = "project";
+    try {
+      await requireActiveDocumentAccess(documentId, request.auth.uid);
+      authorizationMode = "document";
+    } catch (documentAccessError) {
+      if (!data.projectId) throw documentAccessError;
+      await requireActiveProjectAccess(data.projectId, request.auth.uid);
+      authorizationMode = "project";
+    }
   }
 
   const [source] = await bucket.file(data.storagePath).download();
@@ -154,7 +274,7 @@ export const signDocument = onCall(async (request) => {
   const y = field.y ?? 58;
   page.drawRectangle({ x, y, width: Math.min(260, width - x - 24), height: 54, color: rgb(0.98, 0.95, 0.9), borderColor: rgb(0.78, 0.38, 0.08), borderWidth: 1 });
   page.drawText(`Signed electronically by ${signerName}`, { x: x + 10, y: y + 31, size: 12, font, color: rgb(0.12, 0.1, 0.08) });
-  page.drawText(`Virtuo client portal · ${new Date().toLocaleString("en-ZA")}`, { x: x + 10, y: y + 14, size: 8, font, color: rgb(0.35, 0.32, 0.28) });
+  page.drawText(`Virtuo Designs · ${new Date().toLocaleString("en-ZA")}`, { x: x + 10, y: y + 14, size: 8, font, color: rgb(0.35, 0.32, 0.28) });
 
   const signedPath = `accounts/${data.accountId}/documents/${documentId}/signed-${request.auth.uid}.pdf`;
   await bucket.file(signedPath).save(Buffer.from(await pdf.save()), { contentType: "application/pdf", resumable: false });
@@ -170,7 +290,17 @@ export const signDocument = onCall(async (request) => {
       || timestampMillis(latest.expiresAt) !== timestampMillis(data.expiresAt)) {
       throw new HttpsError("failed-precondition", "This signature request changed while it was being completed. Please review the latest version.");
     }
-    if (authorizationMode === "project") {
+    if (latest.expiresAt && timestampMillis(latest.expiresAt) <= Date.now()) {
+      throw new HttpsError("failed-precondition", "This signature request has expired.");
+    }
+    if (authorizationMode === "document") {
+      const access = await transaction.get(db.doc(`documents/${documentId}/access/${request.auth.uid}`));
+      if (!access.exists || !latest.signingShareEnabled
+        || timestampMillis(access.data().expiresAt) <= Date.now()
+        || access.data().shareVersion !== latest.signingShareVersion) {
+        throw new HttpsError("permission-denied", "Your signing access has expired. Re-enter the document PIN.");
+      }
+    } else if (authorizationMode === "project") {
       const [project, access] = await Promise.all([
         transaction.get(db.doc(`projects/${data.projectId}`)),
         transaction.get(db.doc(`projects/${data.projectId}/access/${request.auth.uid}`)),

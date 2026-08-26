@@ -18,6 +18,7 @@ const Faq = lazy(() => import("@/pages/Faq"));
 const ClientDashboard = lazy(() => import("@/pages/ClientDashboard"));
 const CRMWorkspace = lazy(() => import("@/pages/CRMWorkspace"));
 const ProjectShare = lazy(() => import("@/pages/ProjectShare"));
+const DocumentSign = lazy(() => import("@/pages/DocumentSign"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 const queryClient = new QueryClient();
@@ -36,6 +37,7 @@ function Router() {
       <Route path="/faq" component={Faq} />
       <Route path="/portal" component={ClientDashboard} />
       <Route path="/project/:shareId" component={ProjectShare} />
+      <Route path="/sign/:shareId" component={DocumentSign} />
       <Route path="/admin" component={CRMWorkspace} />
       <Route path="/admin/clients" component={CRMWorkspace} />
       <Route path="/admin/projects" component={CRMWorkspace} />
