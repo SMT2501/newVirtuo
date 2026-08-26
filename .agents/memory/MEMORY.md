@@ -1,0 +1,1 @@
+- [Secure document PDF delivery](secure-document-pdf-delivery.md) — signing sessions fetch PDFs through an authenticated Function proxy, not direct Storage URLs.
