@@ -276,8 +276,10 @@ export default function CRMWorkspace() {
       setDocumentShareCredentials({ documentName: record.name, ...result.data });
       setModal("documentShare");
       await loadWorkspace();
-    } catch {
-      setError("The signing link could not be created. Mark the PDF client-visible, confirm it is awaiting signature, and deploy the Firebase Functions configuration.");
+    } catch (error) {
+      console.error("Document signing-link creation failed", error);
+      const detail = error instanceof Error ? error.message : "Firebase returned an unknown error.";
+      setError(`The signing link could not be created. ${detail}`);
     } finally {
       setBusy(false);
     }
