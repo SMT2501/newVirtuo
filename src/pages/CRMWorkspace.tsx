@@ -505,33 +505,50 @@ export default function CRMWorkspace() {
       setError("Documents must be smaller than 20 MB.");
       return;
     }
-    if (documentForm.needsSignature && documentForm.file.type !== "application/pdf" && !documentForm.file.name.toLowerCase().endsWith(".pdf")) {
+    const extension = documentForm.file.name.toLowerCase().split(".").pop() || "";
+    const contentTypes: Record<string, string> = {
+      pdf: "application/pdf",
+      docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    };
+    const contentType = contentTypes[extension];
+    if (!contentType) {
+      setError("Choose a PDF, DOCX, or XLSX file.");
+      return;
+    }
+    if (documentForm.needsSignature && contentType !== "application/pdf") {
       setError("In-platform signatures require a PDF. Disable the signature request to share another file type.");
       return;
     }
     setBusy(true);
+    let stage = "starting the upload";
     try {
       const existing = documents.find((record) => record.id === documentForm.versionOfId);
       const recordRef = existing ? doc(db, "documents", existing.id) : doc(collection(db, "documents"));
       const version = (existing?.version || 0) + 1;
       const safeName = documentForm.file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
       const fileRef = ref(storage, `accounts/${documentForm.accountId}/documents/${recordRef.id}/v${version}-${safeName}`);
-      const uploaded = await uploadBytes(fileRef, documentForm.file);
+      stage = "uploading the file";
+      const uploaded = await uploadBytes(fileRef, documentForm.file, { contentType });
       const documentData = {
         accountId: documentForm.accountId, projectId: documentForm.projectId || null, name: documentForm.name.trim() || documentForm.file.name,
-        contentType: documentForm.file.type, size: documentForm.file.size, storagePath: uploaded.ref.fullPath,
+        contentType, size: documentForm.file.size, storagePath: uploaded.ref.fullPath,
         status: documentForm.needsSignature ? "awaiting_signature" : "draft", needsSignature: documentForm.needsSignature,
          clientVisible: documentForm.clientVisible, recipientIds: documentForm.recipientId ? [documentForm.recipientId] : [], signatureField: { page: Number(documentForm.signaturePage || 0), x: Number(documentForm.signatureX || 52), y: Number(documentForm.signatureY || 58) },
-        version, expiresAt: documentForm.expiresOn ? Timestamp.fromDate(new Date(`${documentForm.expiresOn}T23:59:59`)) : null, uploadedBy: user.uid, updatedAt: serverTimestamp(),
+        version, expiresAt: documentForm.expiresOn ? Timestamp.fromDate(new Date(`${documentForm.expiresOn}T23:59:59`)) : null, uploadedBy: user.uid, uploaderId: user.uid, updatedAt: serverTimestamp(),
       };
       if (existing) {
+        stage = "saving the document version";
         const priorVersion = { version: existing.version || 1, storagePath: existing.storagePath || "", name: existing.name, contentType: existing.contentType, supersededAt: new Date().toISOString() };
         await setDoc(doc(db, "documents", recordRef.id, "versions", `v${priorVersion.version}`), priorVersion);
         await updateDoc(recordRef, { ...documentData, versionHistory: [...(existing.versionHistory || []), priorVersion], signedAt: null, signedBy: null, signedByName: null, signedStoragePath: null, declinedAt: null, declinedBy: null, declineReason: null, signingShareId: null, signingShareEnabled: false, signingShareVersion: Number(existing.signingShareVersion || 0) + 1 });
       } else {
+        stage = "saving the document record";
         await setDoc(recordRef, { ...documentData, createdAt: serverTimestamp() });
       }
+      stage = "writing the activity record";
       await addActivity(documentForm.accountId, existing ? "document_version_sent" : "document_sent", `${documentForm.name.trim() || documentForm.file.name} ${existing ? `was updated to version ${version}` : "was shared"}${documentForm.needsSignature ? " for signature" : ""}.`, documentForm.clientVisible, documentForm.projectId);
+      stage = "writing the document event";
       await addDoc(collection(db, "documentEvents"), {
         accountId: documentForm.accountId, documentId: recordRef.id, eventType: existing ? "version_sent" : "sent", actorId: user.uid, createdAt: serverTimestamp(),
       });
@@ -539,8 +556,10 @@ export default function CRMWorkspace() {
       setMessage(existing ? `Version ${version} was shared with the selected recipient.` : documentForm.needsSignature ? "Document sent for client signature." : "Document securely shared.");
       resetAndClose();
       await loadWorkspace();
-    } catch {
-      setError("The document could not be uploaded. Check the Storage and Firestore rules.");
+    } catch (error) {
+      console.error("Document upload failed", { stage, error });
+      const detail = error instanceof Error ? error.message : "Firebase returned an unknown error.";
+      setError(`The document could not be uploaded while ${stage}. ${detail}`);
       setBusy(false);
     }
   }
