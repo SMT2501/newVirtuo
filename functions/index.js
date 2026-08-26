@@ -1,11 +1,13 @@
 import { createHash, randomBytes } from "node:crypto";
 import { initializeApp } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
 import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 initializeApp();
+const adminAuth = getAuth();
 const db = getFirestore();
 const bucket = getStorage().bucket();
 const PIN_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -159,7 +161,6 @@ export const unlockProjectShare = onCall(async (request) => {
 });
 
 export const unlockDocumentShare = onCall(async (request) => {
-  if (!request.auth) throw new HttpsError("unauthenticated", "A temporary signing session is required.");
   const shareId = String(request.data?.shareId || "");
   const pin = String(request.data?.pin || "");
   if (!shareId || pin.length < 8) throw new HttpsError("invalid-argument", "Enter the document PIN.");
@@ -187,12 +188,17 @@ export const unlockDocumentShare = onCall(async (request) => {
   }
 
   const expiresAt = Timestamp.fromMillis(Date.now() + ACCESS_TTL_MS);
-  await document.ref.collection("access").doc(request.auth.uid).set({
+  const visitorUid = request.auth?.uid || `documentShare_${randomBytes(24).toString("hex")}`;
+  const sessionToken = request.auth ? null : await adminAuth.createCustomToken(visitorUid, {
+    documentId: document.id,
+    accessType: "documentShare",
+  });
+  await document.ref.collection("access").doc(visitorUid).set({
     shareVersion: Number(data.signingShareVersion || 0),
     expiresAt,
     unlockedAt: FieldValue.serverTimestamp(),
   });
-  return { documentId: document.id, expiresAt: expiresAt.toMillis() };
+  return { documentId: document.id, expiresAt: expiresAt.toMillis(), sessionToken };
 });
 
 async function requireActiveProjectAccess(projectId, uid) {
