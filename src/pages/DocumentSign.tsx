@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { signInWithCustomToken } from "firebase/auth";
+import { signInAnonymously } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
 import { addDoc, collection, doc, getDoc, serverTimestamp } from "firebase/firestore";
 import { getBytes, ref } from "firebase/storage";
@@ -43,9 +43,9 @@ export default function DocumentSign() {
     setBusy(true);
     setError("");
     try {
-      const unlockDocumentShare = httpsCallable<{ shareId: string; pin: string }, { documentId: string; sessionToken?: string | null }>(functions, "unlockDocumentShare");
+      if (!auth.currentUser) await signInAnonymously(auth);
+      const unlockDocumentShare = httpsCallable<{ shareId: string; pin: string }, { documentId: string }>(functions, "unlockDocumentShare");
       const result = await unlockDocumentShare({ shareId, pin: pin.trim() });
-      if (result.data.sessionToken) await signInWithCustomToken(auth, result.data.sessionToken);
       await loadDocument(result.data.documentId);
       setPin("");
     } catch (cause) {
