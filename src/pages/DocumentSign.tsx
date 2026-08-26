@@ -2,10 +2,9 @@ import { FormEvent, useEffect, useState } from "react";
 import { signInAnonymously } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
 import { addDoc, collection, doc, getDoc, serverTimestamp } from "firebase/firestore";
-import { getBytes, ref } from "firebase/storage";
 import { Check, Download, FileCheck2, FileText, LoaderCircle, LockKeyhole, ShieldCheck } from "lucide-react";
 import { useRoute } from "wouter";
-import { auth, db, functions, storage } from "@/firebase";
+import { auth, db, documentSharePdfUrl, functions } from "@/firebase";
 import { type DocumentRecord } from "@/lib/crm";
 
 function isExpired(record: DocumentRecord) {
@@ -61,7 +60,7 @@ export default function DocumentSign() {
     setBusy(true);
     setError("");
     try {
-      const bytes = await getBytes(ref(storage, record.storagePath));
+      const bytes = await getDocumentPdf(record.id, "source");
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       setPreviewUrl(URL.createObjectURL(new Blob([bytes], { type: "application/pdf" })));
       void recordEvent("viewed");
@@ -90,11 +89,10 @@ export default function DocumentSign() {
   }
 
   async function downloadSigned() {
-    const path = record?.signedStoragePath;
-    if (!path || !record) return;
+    if (!record?.signedStoragePath) return;
     setBusy(true);
     try {
-      const bytes = await getBytes(ref(storage, path));
+      const bytes = await getDocumentPdf(record.id, "signed");
       const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
       const anchor = document.createElement("a");
       anchor.href = url;
@@ -107,6 +105,16 @@ export default function DocumentSign() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function getDocumentPdf(documentId: string, version: "source" | "signed") {
+    const token = await auth.currentUser?.getIdToken();
+    if (!token) throw new Error("Your signing session has expired.");
+    const response = await fetch(`${documentSharePdfUrl}?documentId=${encodeURIComponent(documentId)}&version=${version}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) throw new Error("The PDF could not be retrieved.");
+    return response.arrayBuffer();
   }
 
   async function recordEvent(eventType: "viewed" | "downloaded") {

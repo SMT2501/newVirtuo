@@ -1,8 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
 import { initializeApp } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
 import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
-import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 initializeApp();
@@ -217,7 +218,56 @@ async function requireActiveDocumentAccess(documentId, uid) {
     || access.data().shareVersion !== document.data().signingShareVersion) {
     throw new HttpsError("permission-denied", "Your signing access has expired. Re-enter the document PIN.");
   }
+  const data = document.data();
+  if (data.status !== "awaiting_signature" && data.status !== "signed") {
+    throw new HttpsError("failed-precondition", "This document is no longer available for signing.");
+  }
+  if (data.clientVisible !== true || data.needsSignature !== true
+    || data.contentType !== "application/pdf" || !data.storagePath
+    || (data.expiresAt && data.expiresAt.toMillis() <= Date.now())) {
+    throw new HttpsError("failed-precondition", "This document is not available through this signing link.");
+  }
+  return data;
 }
+
+export const downloadDocumentSharePdf = onRequest({ cors: true }, async (request, response) => {
+  if (request.method !== "GET") {
+    response.status(405).send("Method not allowed.");
+    return;
+  }
+  const documentId = String(request.query.documentId || "");
+  const version = request.query.version === "signed" ? "signed" : "source";
+  const token = request.get("authorization")?.match(/^Bearer (.+)$/i)?.[1];
+  if (!documentId || !token) {
+    response.status(401).send("A temporary signing session is required.");
+    return;
+  }
+
+  try {
+    const decoded = await getAuth().verifyIdToken(token);
+    const data = await requireActiveDocumentAccess(documentId, decoded.uid);
+    const storagePath = version === "signed" ? data.signedStoragePath : data.storagePath;
+    if (!storagePath || (version === "signed" && data.status !== "signed")) {
+      response.status(404).send("The requested PDF is not available.");
+      return;
+    }
+
+    response.setHeader("Content-Type", "application/pdf");
+    response.setHeader("Content-Disposition", `inline; filename="${String(data.name || "document.pdf").replace(/"/g, "")}"`);
+    bucket.file(storagePath).createReadStream()
+      .on("error", () => {
+        if (!response.headersSent) response.status(500).send("The PDF could not be retrieved.");
+        else response.end();
+      })
+      .pipe(response);
+  } catch (error) {
+    if (error instanceof HttpsError) {
+      response.status(error.code === "permission-denied" ? 403 : 400).send(error.message);
+      return;
+    }
+    response.status(401).send("Your signing session is no longer valid. Re-enter the document PIN.");
+  }
+});
 
 async function requireDocumentRecipient(data, uid) {
   const membership = await db.doc(`accounts/${data.accountId}/members/${uid}`).get();
