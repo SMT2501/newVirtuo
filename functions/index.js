@@ -30,7 +30,19 @@ async function requireInternalUser(uid) {
   if (!profile.exists || !["admin", "staff"].includes(profile.data().role)) {
     throw new HttpsError("permission-denied", "Internal CRM access is required.");
   }
+  return profile.data().role;
 }
+
+export const syncInternalStorageAccess = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in as an internal user first.");
+  const role = await requireInternalUser(request.auth.uid);
+  const user = await getAuth().getUser(request.auth.uid);
+  await getAuth().setCustomUserClaims(request.auth.uid, {
+    ...(user.customClaims || {}),
+    crmRole: role,
+  });
+  return { role };
+});
 
 export const createProjectShare = onCall(async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in as an internal user first.");

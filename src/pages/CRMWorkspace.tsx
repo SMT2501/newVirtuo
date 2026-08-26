@@ -114,6 +114,7 @@ export default function CRMWorkspace() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [authorized, setAuthorized] = useState(false);
+  const [storageAccessReady, setStorageAccessReady] = useState(false);
   const [view, setView] = useState<View>("Overview");
   const [modal, setModal] = useState<ModalKind>(null);
   const [search, setSearch] = useState("");
@@ -147,14 +148,24 @@ export default function CRMWorkspace() {
   useEffect(() => onAuthStateChanged(auth, async (nextUser) => {
     setUser(nextUser);
     if (!nextUser) {
+      setStorageAccessReady(false);
       setLoading(false);
       return;
     }
     try {
       const profile = await getDoc(doc(db, "users", nextUser.uid));
       const role = profile.exists() ? profile.data().role : "";
-      setAuthorized(["admin", "staff"].includes(role));
+      const isInternalUser = ["admin", "staff"].includes(role);
+      setAuthorized(isInternalUser);
+      if (isInternalUser) {
+        await httpsCallable(functions, "syncInternalStorageAccess")();
+        await nextUser.getIdToken(true);
+        setStorageAccessReady(true);
+      } else {
+        setStorageAccessReady(false);
+      }
     } catch {
+      setStorageAccessReady(false);
       setError("We could not verify your internal access.");
     } finally {
       setLoading(false);
@@ -497,6 +508,10 @@ export default function CRMWorkspace() {
   async function saveDocument(event: FormEvent) {
     event.preventDefault();
     if (!user || !documentForm.accountId || !documentForm.file) return;
+    if (!storageAccessReady) {
+      setError("Preparing secure document-upload access. Refresh the CRM and try again.");
+      return;
+    }
     if (!documentForm.projectId && !documentForm.recipientId) {
       setError("Choose a project for PIN-protected sharing, or choose a client login for legacy portal sharing.");
       return;

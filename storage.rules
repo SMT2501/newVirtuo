@@ -6,11 +6,9 @@ service firebase.storage {
     }
 
     function internalUser() {
-      return signedIn() && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role in ['admin', 'staff'];
-    }
-
-    function adminUser() {
-      return signedIn() && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return signedIn()
+        && ('crmRole' in request.auth.token)
+        && request.auth.token.crmRole in ['admin', 'staff'];
     }
 
     function accountMember(accountId) {
@@ -66,8 +64,8 @@ service firebase.storage {
 
     match /accounts/{accountId}/documents/{documentId}/{fileName} {
       allow read: if internalUser() || documentRecipient(accountId, documentId) || projectDocumentVisitor(accountId, documentId) || documentShareVisitor(accountId, documentId);
-      allow create: if internalUser()
-        || (accountMember(accountId) && fileName.matches('client-.*'))
+      allow create: if (internalUser()
+        || (accountMember(accountId) && fileName.matches('client-.*')))
         && request.resource.size < 20 * 1024 * 1024
         && request.resource.contentType in [
           'application/pdf',
