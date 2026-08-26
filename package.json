@@ -84,6 +84,7 @@
     "firebase": "^12.17.1",
     "firebase-admin": "^14.3.0",
     "firebase-functions": "^7.3.2",
+    "firebase-tools": "^15.28.1",
     "pdf-lib": "1.17.1"
   }
 }
