@@ -189,10 +189,22 @@ export const unlockDocumentShare = onCall(async (request) => {
 
   const expiresAt = Timestamp.fromMillis(Date.now() + ACCESS_TTL_MS);
   const visitorUid = request.auth?.uid || `documentShare_${randomBytes(24).toString("hex")}`;
-  const sessionToken = request.auth ? null : await adminAuth.createCustomToken(visitorUid, {
-    documentId: document.id,
-    accessType: "documentShare",
-  });
+  let sessionToken = null;
+  if (!request.auth) {
+    try {
+      sessionToken = await adminAuth.createCustomToken(visitorUid, {
+        documentId: document.id,
+        accessType: "documentShare",
+      });
+    } catch (cause) {
+      const error = cause instanceof Error ? cause : new Error("Unknown custom-token error");
+      console.error("Could not create a temporary document signing session.", {
+        name: error.name,
+        message: error.message,
+      });
+      throw new HttpsError("internal", "A temporary signing session could not be created.");
+    }
+  }
   await document.ref.collection("access").doc(visitorUid).set({
     shareVersion: Number(data.signingShareVersion || 0),
     expiresAt,
