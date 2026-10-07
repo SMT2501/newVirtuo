@@ -1,3 +1,4 @@
+import { websitePackages } from "@/config/sales";
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, MessageCircle, ArrowUpRight } from "lucide-react";
@@ -23,7 +24,7 @@ interface Step {
 const STEPS: Record<string, Step> = {
   start: {
     id: "start",
-    messages: ["Hi there 👋 I'm Virtuo's assistant.", "What can I help you with today?"],
+    messages: ["Hi there! I am Virtuo's assistant.", "What can I help you with today?"],
     options: [
       { label: "🛠 What services do you offer?", next: "services" },
       { label: "💰 How much does a project cost?", next: "pricing" },
@@ -48,9 +49,8 @@ const STEPS: Record<string, Step> = {
   pricing: {
     id: "pricing",
     messages: [
-      "Every project is scoped individually, but here's a rough guide:",
-      "• Informational site — from R5,000\n• Service / booking site — from R12,000\n• Web app or platform — from R25,000\n• Enterprise / custom — let's talk",
-      "We'll give you a detailed quote after a free 30-min consultation.",
+      "Here are our published website packages. The team will confirm your scope and quote before you commit:",
+      websitePackages.map(plan => `${plan.name} ? ${plan.price}`).join("\n"),
     ],
     options: [
       { label: "📅 Book a free consultation", next: "book" },
@@ -203,6 +203,7 @@ export function ChatBot() {
   const [, navigate] = useLocation();
   const bottomRef = useRef<HTMLDivElement>(null);
   const hasOpened = useRef(false);
+  const launcherRef = useRef<HTMLButtonElement>(null);
 
   // Initialise messages when first opened
   useEffect(() => {
@@ -210,6 +211,18 @@ export function ChatBot() {
       hasOpened.current = true;
       playStep(STEPS.start);
     }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+        launcherRef.current?.focus();
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
   }, [open]);
 
   // Auto-scroll on new messages
@@ -239,10 +252,8 @@ export function ChatBot() {
 
     // Handle external links
     if (option.href && !option.navigate) {
-      setTimeout(() => {
-        window.open(option.href, "_blank", "noopener,noreferrer");
-        playStep(STEPS[option.next]);
-      }, 200);
+      window.open(option.href, "_blank", "noopener,noreferrer");
+      playStep(STEPS[option.next]);
       return;
     }
 
@@ -263,6 +274,7 @@ export function ChatBot() {
 
   function handleClose() {
     setOpen(false);
+    launcherRef.current?.focus();
   }
 
   function handleOpen() {
@@ -279,6 +291,7 @@ export function ChatBot() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.92, y: 16 }}
             transition={{ duration: 0.22, ease: "easeOut" }}
+            role="region" aria-label="Virtuo assistant conversation"
             className="fixed bottom-[5.5rem] right-6 z-50 w-[340px] max-w-[calc(100vw-3rem)] bg-background border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden"
             style={{ maxHeight: "min(520px, calc(100dvh - 8rem))" }}
           >
@@ -289,12 +302,12 @@ export function ChatBot() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-sm leading-none">Virtuo Assistant</p>
-                <p className="text-[11px] text-primary-foreground/70 mt-0.5">Typically replies instantly</p>
+                <p className="text-[11px] text-primary-foreground/70 mt-0.5">Automated assistant ? connect with the team</p>
               </div>
               <button
                 onClick={handleClose}
                 aria-label="Close chat"
-                className="w-7 h-7 rounded-full hover:bg-primary-foreground/15 flex items-center justify-center transition-colors"
+                className="w-11 h-11 rounded-full hover:bg-primary-foreground/15 flex items-center justify-center transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -350,11 +363,13 @@ export function ChatBot() {
 
       {/* Toggle button */}
       <button
+        ref={launcherRef}
+        aria-expanded={open}
         onClick={open ? handleClose : handleOpen}
         aria-label={open ? "Close chat" : "Open chat"}
         className="fixed bottom-6 right-6 z-50 group"
       >
-        <span className="absolute inset-0 rounded-full bg-primary opacity-20 animate-ping [animation-delay:0.6s]" />
+        <span className="absolute inset-0 rounded-full bg-primary opacity-20 motion-safe:animate-ping [animation-delay:0.6s]" />
         <motion.span
           animate={{ rotate: open ? 45 : 0 }}
           transition={{ duration: 0.2 }}

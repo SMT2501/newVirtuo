@@ -1,3 +1,4 @@
+import { QuizLeadsPanel } from "@/components/crm/QuizLeadsPanel";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   addDoc,
@@ -60,7 +61,7 @@ import {
 } from "@/lib/crm";
 import { downloadInvoicePdf, getPdfPageSize } from "@/lib/pdf";
 
-type View = "Overview" | "Accounts" | "Projects" | "Tasks" | "Documents" | "Invoices" | "Settings";
+type View = "Overview" | "Accounts" | "Projects" | "Tasks" | "Documents" | "Invoices" | "Quiz enquiries" | "Settings";
 type ModalKind = "account" | "contact" | "project" | "task" | "document" | "invoice" | "communication" | "share" | null;
 type ProjectForm = { accountId: string; name: string; type: string; status: string; progress: string; dueDate: string; milestones: string; notes: string; teamMembers: string };
 type InvoiceLineItemForm = { description: string; quantity: string; unitPrice: string };
@@ -107,6 +108,7 @@ const views: { label: View; icon: typeof LayoutDashboard }[] = [
   { label: "Tasks", icon: ClipboardList },
   { label: "Documents", icon: FileCheck2 },
   { label: "Invoices", icon: CircleDollarSign },
+  { label: "Quiz enquiries", icon: ClipboardList },
   { label: "Settings", icon: Settings },
 ];
 
@@ -722,6 +724,7 @@ export default function CRMWorkspace() {
           {view === "Tasks" && <TasksView tasks={visibleTasks} projects={projects} accounts={accounts} onCreate={() => setModal("task")} onUpdate={updateTaskStatus} />}
           {view === "Documents" && <DocumentsView documents={visibleDocuments} accounts={accounts} projects={projects} onCreate={() => setModal("document")} onDownload={downloadDocument} onShare={shareDocument} />}
           {view === "Invoices" && <InvoicesView invoices={visibleInvoices} accounts={accounts} clients={clients} onCreate={createInvoice} onStatus={updateInvoiceStatus} onEdit={editInvoice} />}
+          {view === "Quiz enquiries" && <QuizLeadsPanel />}
           {view === "Settings" && <SettingsView clients={clients} accounts={accounts} />}
         </div>
       </main>

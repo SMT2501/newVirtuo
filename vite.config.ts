@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
+import { existsSync } from "node:fs";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
 const rawPort = process.env.PORT ?? "20791";
@@ -15,6 +16,25 @@ const basePath = process.env.BASE_PATH ?? "/";
 export default defineConfig({
   base: basePath,
   plugins: [
+    {
+      name: "prerender-preview-routing",
+      configurePreviewServer(server) {
+        server.middlewares.use((req, _res, next) => {
+          const url = new URL(req.url ?? "/", "http://localhost");
+          if (req.method === "GET" && req.headers.accept?.includes("text/html")) {
+            const route = url.pathname.replace(/\/$/, "");
+            if (route === "" || /^\/[a-z0-9-]+$/.test(route)) {
+              const file = route === "" ? "/index.html" : route + "/index.html";
+              const output = path.resolve(import.meta.dirname, "dist/public");
+              req.url = (existsSync(path.join(output, file)) ? file : "/app.html") + url.search;
+            } else if (!path.extname(route)) {
+              req.url = "/app.html" + url.search;
+            }
+          }
+          next();
+        });
+      },
+    },
     react(),
     tailwindcss(),
     runtimeErrorOverlay(),

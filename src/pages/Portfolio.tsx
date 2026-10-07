@@ -414,7 +414,8 @@ export default function Portfolio() {
           {projects.map((work, i) => (
             <div
               key={i}
-              className={`flex flex-col ${i % 2 !== 0 ? "md:flex-row-reverse" : "md:flex-row"} items-center gap-12 md:gap-20 group`}
+              id={work.title === "Umnini Community Trust" ? "umnini-community-trust" : work.title === "Campus Marketplace" ? "campus-marketplace" : work.title === "MJP Security" ? "mjp-security" : undefined}
+              className={`scroll-mt-32 flex flex-col ${i % 2 !== 0 ? "md:flex-row-reverse" : "md:flex-row"} items-center gap-12 md:gap-20 group`}
             >
               <div className="w-full md:w-[55%] overflow-hidden rounded-xl bg-secondary border border-border">
                 <div className="aspect-[4/3] w-full overflow-hidden">

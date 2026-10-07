@@ -1,3 +1,6 @@
+import { useSearch } from "wouter";
+import { useEffect } from "react";
+import { websitePackages } from "@/config/sales";
 import { Layout } from "@/components/layout/Layout";
 import { Seo } from "@/components/Seo";
 import { Mail, MapPin, Phone, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
@@ -6,8 +9,17 @@ import { useState } from "react";
 type Status = "idle" | "loading" | "success" | "error";
 
 export default function Contact() {
+  const search = useSearch();
   const [status, setStatus] = useState<Status>("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const [salesBrief, setSalesBrief] = useState("");
+  const [selectedPlan, setSelectedPlan] = useState("");
+  useEffect(() => {
+    const query = new URLSearchParams(search);
+    setSalesBrief((query.get("brief") ?? "").slice(0, 4000));
+    const plan = query.get("plan") ?? "";
+    setSelectedPlan(websitePackages.some(item => item.name === plan) ? plan : "");
+  }, [search]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -27,6 +39,8 @@ export default function Contact() {
       if (res.ok) {
         setStatus("success");
         form.reset();
+        setSalesBrief("");
+        setSelectedPlan("");
       } else {
         const json = await res.json().catch(() => ({}));
         setErrorMsg(
@@ -134,7 +148,8 @@ export default function Contact() {
             ) : (
               <>
                 <h3 className="text-2xl font-serif mb-6">Send an Enquiry</h3>
-                <form className="space-y-5" onSubmit={handleSubmit}>
+                <form className="space-y-5" action="https://formspree.io/f/maqglovl" method="POST" onSubmit={handleSubmit}>
+                  {selectedPlan && <div className="rounded-lg border border-border p-4"><p className="font-semibold">Your starting point: {selectedPlan}</p><p className="text-sm text-muted-foreground">We?ll confirm the scope and quote before you commit.</p><input type="hidden" name="selected_package" value={selectedPlan} /></div>}
                   <div className="grid md:grid-cols-2 gap-5">
                     <div className="space-y-2">
                       <label className="text-sm font-medium" htmlFor="name">Name *</label>
@@ -206,6 +221,7 @@ export default function Contact() {
                     <select
                       id="budget"
                       name="budget"
+                      defaultValue="To be discussed"
                       className="w-full bg-background border border-border rounded-lg px-4 py-3 focus:outline-none focus:border-accent text-foreground appearance-none cursor-pointer transition-colors"
                     >
                       <option>Under R12,500</option>
@@ -223,6 +239,9 @@ export default function Contact() {
                       name="message"
                       required
                       rows={5}
+                      maxLength={4000}
+                      value={salesBrief}
+                      onChange={event => setSalesBrief(event.target.value)}
                       className="w-full bg-background border border-border rounded-lg px-4 py-3 focus:outline-none focus:border-accent text-foreground resize-none transition-colors"
                       placeholder="Describe your project, goals, and any specific requirements..."
                     />
@@ -246,7 +265,7 @@ export default function Contact() {
                         Sending…
                       </>
                     ) : (
-                      "Send Message"
+                      "Request My Quote"
                     )}
                   </button>
 

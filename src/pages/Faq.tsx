@@ -1,8 +1,8 @@
 import { Layout } from "@/components/layout/Layout";
 import { Seo } from "@/components/Seo";
 import { Link } from "wouter";
-import { useState } from "react";
-import { Plus, Minus } from "lucide-react";
+
+import { Plus } from "lucide-react";
 
 const faqs = [
   {
@@ -92,28 +92,16 @@ const faqs = [
 ];
 
 function FaqItem({ q, a }: { q: string; a: string }) {
-  const [open, setOpen] = useState(false);
   return (
-    <div className="border-b border-border">
-      <button
-        className="w-full flex items-start justify-between gap-4 py-5 text-left group"
-        onClick={() => setOpen(!open)}
-        aria-expanded={open}
-      >
-        <span className="text-base font-medium leading-snug group-hover:text-accent transition-colors">{q}</span>
-        <span className="shrink-0 mt-0.5 text-muted-foreground">
-          {open ? <Minus className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
-        </span>
-      </button>
-      {open && (
-        <p className="pb-6 text-muted-foreground font-light leading-relaxed text-sm pr-8">
-          {a}
-        </p>
-      )}
-    </div>
+    <details className="border-b border-border group">
+      <summary className="w-full flex items-start justify-between gap-4 py-5 text-left cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+        <span className="text-base font-medium leading-snug hover:text-accent transition-colors">{q}</span>
+        <Plus className="w-5 h-5 shrink-0 mt-0.5 text-muted-foreground transition-transform group-open:rotate-45" aria-hidden="true" />
+      </summary>
+      <p className="pb-6 text-muted-foreground font-light leading-relaxed text-sm pr-8">{a}</p>
+    </details>
   );
 }
-
 export default function Faq() {
   return (
     <Layout>

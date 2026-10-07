@@ -53,6 +53,14 @@ service cloud.firestore {
         && projectVisitor(data.projectId);
     }
 
+    match /checkupLeads/{leadId} {
+      allow read: if internalUser();
+      allow create, update, delete: if false;
+    }
+    match /_checkupRateLimits/{recordId} {
+      allow read, write: if false;
+    }
+
     match /users/{userId} {
       allow read: if signedIn() && (request.auth.uid == userId || internalUser());
       allow create: if (adminUser() && request.resource.data.role in ['client', 'staff', 'admin'])

@@ -1,3 +1,4 @@
+import { makeCheckupLeadHandler } from "./checkup-leads.js";
 import { createHash, randomBytes } from "node:crypto";
 import { initializeApp } from "firebase-admin/app";
 import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
@@ -203,3 +204,4 @@ export const signDocument = onCall(async (request) => {
   });
   return { signedPath };
 });
+export const saveCheckupLead = onCall({ invoker: "public", timeoutSeconds: 30, maxInstances: 5 }, makeCheckupLeadHandler(db));

@@ -1,8 +1,9 @@
 {
   "hosting": {
     "public": "dist/public",
+    "trailingSlash": false,
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "rewrites": [{ "source": "**", "destination": "/index.html" }]
+    "rewrites": [{ "source": "**", "destination": "/app.html" }]
   },
   "firestore": {
     "rules": "firestore.rules",

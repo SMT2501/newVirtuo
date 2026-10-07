@@ -1,2 +1,13 @@
 node_modules/
 .tsbuildinfo
+/dist/prerender/
+
+# Local deployment caches, logs and verification outputs
+.firebase/
+firebase-debug*.log
+firestore-debug*.log
+ui-debug*.log
+functions-debug*.log
+tmp/
+*.stackdump
+/tall --frozen-lockfile

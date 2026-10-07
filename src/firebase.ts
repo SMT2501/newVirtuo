@@ -1,3 +1,4 @@
+import { firebaseConfig } from "@/config/firebase";
 import { initializeApp } from "firebase/app";
 import { getAnalytics, isSupported as analyticsIsSupported } from "firebase/analytics";
 import { createUserWithEmailAndPassword, getAuth } from "firebase/auth";
@@ -5,15 +6,7 @@ import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getFunctions } from "firebase/functions";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyCno6NZH9szwgG9LRX663COQznL9fBbX_M",
-  authDomain: "newvirtuo.firebaseapp.com",
-  projectId: "newvirtuo",
-  storageBucket: "newvirtuo.firebasestorage.app",
-  messagingSenderId: "948875716154",
-  appId: "1:948875716154:web:05d0e376671ccdfef7f703",
-  measurementId: "G-RKMWS7YT11",
-};
+
 
 const app = initializeApp(firebaseConfig);
 const provisioningApp = initializeApp(firebaseConfig, "client-provisioning");

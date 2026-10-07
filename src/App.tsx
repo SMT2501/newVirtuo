@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ScrollToTop } from "@/components/ScrollToTop";
 
+import { PageErrorBoundary, PageLoading } from "@/components/PageStatus";
 import Home from "@/pages/Home";
 
 const About = lazy(() => import("@/pages/About"));
@@ -44,16 +45,18 @@ function Router() {
   );
 }
 
-function App() {
+function App({ ssrPath }: { ssrPath?: string }) {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Suspense fallback={null}>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+        <PageErrorBoundary>
+          <Suspense fallback={<PageLoading />}>
+          <WouterRouter ssrPath={ssrPath} base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
             <ScrollToTop />
             <Router />
           </WouterRouter>
-        </Suspense>
+                  </Suspense>
+        </PageErrorBoundary>
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>

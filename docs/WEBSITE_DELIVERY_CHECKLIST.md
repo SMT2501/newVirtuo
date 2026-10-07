@@ -1,0 +1,195 @@
+# Website delivery checklist
+
+Use alongside [Sam's build guide](AI_AGENT_WEBSITE_BUILD_GUIDE.md). The guide is preserved verbatim; this checklist makes every section trackable and adds lessons from this site's rendering work. It is a reusable template, not a completed audit.
+
+Copy this file for each project or release. Use PASS, FAIL, NOT TESTED or N/A for each requirement. N/A requires a reason. An unchecked box is outstanding. For every result, attach the command/output, screenshot, approved source, test record or deployment reference that supports it. Record an owner and next action for unresolved items.
+
+## Project record and acceptance criteria
+
+- Project/client: [CLIENT TO CONFIRM]
+- Primary visitor action and success measure: [CLIENT TO CONFIRM]
+- Scope, pages, audience, devices, content owner and delivery dates: [CLIENT TO CONFIRM]
+- Brand source and asset approval: [CLIENT TO CONFIRM]
+- Domain, hosting, email and integration account owners: [CLIENT TO CONFIRM]
+- Personal data, tracking, applicable legal review and retention owner: [CLIENT TO CONFIRM]
+- Development/staging/production URLs: [CLIENT TO CONFIRM]
+- Release commit/tag, date and approver: [CLIENT TO CONFIRM]
+- Maintenance owner and post-launch review date: [CLIENT TO CONFIRM]
+
+Write 2–5 measurable criteria per feature before implementation. Do not invent a delivery-time promise; use the client's approved requirement.
+
+| Feature | Criterion / scenario | Status | Evidence | Owner / next action |
+|---|---|---|---|---|
+| [Feature] | [Given / when / expected result] | NOT TESTED | — | — |
+
+## 1. Scope and operating rules — guide Section 1
+
+- [ ] Goal, page list, assumptions and material open questions recorded.
+- [ ] Architecture, cost and legal decisions resolved with the authorized owner.
+- [ ] Changes stay within the request; diff reviewed; reversible steps retained.
+- [ ] No invented facts; every placeholder and unverified claim recorded.
+- [ ] Security, accessibility and content conflicts disclosed.
+- [ ] Completion statements backed by actual evidence.
+
+## 2. Architecture and business configuration — guide Section 2
+
+- [ ] Simplest suitable architecture chosen with reasons.
+- [ ] Database, accounts and admin features have explicit requirements.
+- [ ] Changeable prices, fees, banking details, contacts, hours and legal names have one documented source.
+- [ ] Existing backend permissions enforce access to protected data.
+- [ ] Public content and private client data have separate rendering/data boundaries.
+- [ ] Configuration, editable content and credentials documented for handover.
+
+Implementation note: enforce database access using the actual backend's mechanism. For this Firebase project that means Firestore/Storage rules and callable-function authorization, rather than adding SQL row-level security or changing providers.
+
+## 3. Brief and acceptance criteria — guide Section 3
+
+- [ ] Purpose, primary action, audience and mobile/connectivity constraints confirmed.
+- [ ] Pages, content delivery, brand assets and tone confirmed.
+- [ ] Forms, bookings, payments, newsletters, maps, multilingual needs and analytics scoped.
+- [ ] Domain/email setup and account ownership confirmed.
+- [ ] Personal-data collection, cookies and legal context recorded.
+- [ ] Content approver and maintenance owner assigned.
+- [ ] Each feature has 2–5 testable acceptance criteria and an evidence record.
+
+## 4. Security — guide Section 4
+
+- [ ] Secrets scan covers tracked files, build output and relevant history; exposed secrets rotated.
+- [ ] Secret environment values excluded from source control and browser bundles.
+- [ ] Provider-required public identifiers distinguished from private credentials; restrictions checked.
+- [ ] Server/provider validates input; client validation is not the only control.
+- [ ] Logged-out, wrong-role and cross-client access denied; least privilege and admin MFA verified where applicable.
+- [ ] HTTPS, HTTP redirects, CSP, HSTS, content-type and frame protections verified on deployed responses.
+- [ ] Forms have spam controls, rate limiting and safe errors.
+- [ ] Dependency versions/lockfile reviewed; audit findings resolved or documented.
+- [ ] Upload size/type constraints and storage access tested; uploads cannot execute code.
+- [ ] Logs exclude personal data, passwords and tokens.
+- [ ] Environment names, endpoints and any AI model references verified.
+- [ ] Staging and production credentials/data separated.
+
+## 5. Code quality — guide Section 5
+
+- [ ] Type checking, build and configured lint checks pass; missing tooling explicitly reported.
+- [ ] Any untyped code has a justified exception; components and naming are clear.
+- [ ] No unrelated refactors, duplicated logic, dead code or debug leftovers.
+- [ ] Loading, empty, error and not-found states tested.
+- [ ] README and architecture describe implemented, planned and unverified behavior honestly.
+- [ ] Change history and rollback steps explain what changed and why.
+
+## 6. Design, UX and accessibility — guide Section 6
+
+- [ ] Supplied final logo, brand tokens and approved assets used.
+- [ ] Layout checked at 320, 375, 768, 1024 and 1440px; no unintended horizontal scroll.
+- [ ] Touch targets meet the guide's 44×44px requirement.
+- [ ] WCAG 2.1 AA checks include semantic landmarks, one h1, headings, labels and alt text.
+- [ ] Keyboard navigation, visible focus, menu/dialog behavior and contrast checked.
+- [ ] Reduced-motion preference respected.
+- [ ] Every page has a clear primary action.
+- [ ] Placeholder/AI imagery listed and approved or replaced.
+- [ ] Automated accessibility scan recorded alongside manual checks.
+
+## 7. Performance — guide Section 7
+
+- [ ] Key pages tested with the device/network settings and tool versions recorded.
+- [ ] LCP <2.5s, INP <200ms and CLS <0.1 assessed using appropriate measurements.
+- [ ] Lighthouse Performance 90+ target checked; field INP is not claimed from a Lighthouse score.
+- [ ] Images compressed, modern formats used, dimensions set and below-fold images deferred.
+- [ ] Fonts optimized with swap; font weights limited.
+- [ ] JavaScript and animation dependencies reviewed.
+- [ ] Analytics, chat and embeds delayed and included only when required.
+- [ ] CDN/caching verified; deploy does not strand old pages on missing asset chunks.
+
+## 8. SEO, rendering and discoverability — guide Section 8 plus rendering lessons
+
+- [ ] Public page source contains meaningful headings, copy, navigation and calls to action before JavaScript runs.
+- [ ] Each public URL returns its own title, description, canonical and social preview metadata.
+- [ ] Structured data uses approved factual claims and relevant schema.
+- [ ] Sitemap and robots URLs return correct content and status codes.
+- [ ] Canonical domain, trailing slashes and old-URL 301 redirects verified.
+- [ ] Staging remains protected; unintended production noindex removed.
+- [ ] Private portals, admin pages and sensitive shared links have deliberate indexing policies; robots is not access control.
+- [ ] Direct URL loads, refresh, client navigation and unknown URLs behave correctly.
+- [ ] Unknown public URLs return a genuine 404 where supported; SPA soft-404 behavior disclosed.
+- [ ] Hydration produces no mismatches; public content remains usable if JavaScript is unavailable.
+- [ ] Local preview and hosting route rules agree.
+- [ ] Client-authorized Search Console access used to inspect rendered HTML/canonical and submit sitemap.
+- [ ] Social previews checked using real public URLs after deployment.
+
+## 9. Content, legal and licensing — guide Section 9
+
+- [ ] Client approved copy, facts, testimonials, results and pricing.
+- [ ] Contradictions in dates, names, fees and other repeated facts resolved by the owner.
+- [ ] Requested fact changes propagated through copy, FAQs, metadata, alt text and structured data.
+- [ ] Privacy, terms and cookie requirements reviewed for the actual data/tracking behavior.
+- [ ] Draft legal text marked [LEGAL REVIEW REQUIRED] until approved.
+- [ ] Retention, processing purpose and responsible privacy contact confirmed with the client.
+- [ ] Third-party assets have recorded sources, licenses and approvals.
+- [ ] No unmarked placeholders, test records or staging URLs in the release.
+
+## 10. Test execution and regression — guide Section 10
+
+- [ ] Build, type checking and lint results recorded; warnings explained.
+- [ ] Every feature acceptance criterion marked PASS/FAIL/NOT TESTED/N/A with evidence.
+- [ ] Forms tested with valid, invalid, empty and oversized inputs.
+- [ ] Delivery destination and visitor confirmation verified; no unsolicited test messages sent to real clients.
+- [ ] Relevant booking, payment, upload, signing and account flows tested in authorized test environments.
+- [ ] Internal/external links and production URL references checked.
+- [ ] Responsive, keyboard, accessibility, performance and security results attached.
+- [ ] Previously working pages and flows retested after changes.
+- [ ] Real-device and live-domain checks distinguished from local checks.
+- [ ] Anything unavailable listed under Needs human verification.
+
+| Check | Environment / command | Status | Evidence / limitation |
+|---|---|---|---|
+| Build / typecheck / lint | [Record separately] | NOT TESTED | — |
+| Acceptance criteria / flows / links | [Record scenarios] | NOT TESTED | — |
+| Responsive / accessibility | [Widths, manual checks, scan] | NOT TESTED | — |
+| Performance | [Pages, device, network, field/lab] | NOT TESTED | — |
+| Security | [Scan, audit, headers, access tests] | NOT TESTED | — |
+| Live infrastructure / delivery | [DNS, email, deployed routes] | NOT TESTED | — |
+
+## 11. Session reporting — guide Section 11
+
+Use the guide's exact session report fields: What I changed; Acceptance criteria; Checks run; Placeholders and assumptions; Content conflicts or risks found; Needs human verification; Recommended next step.
+
+Never mark a broader launch check PASS because a build or a narrow regression check passed.
+
+## 12. Human launch gate — guide Section 12
+
+Sam completes the original Section 12 checklist in the build guide. This checklist supplements it and does not replace sign-off.
+
+- [ ] Final content, brand, contacts, fees, imagery and legal pages approved.
+- [ ] Forms/confirmation delivery and all pages/buttons verified on phone and desktop.
+- [ ] HTTPS, headers, DNS and email records (SPF/DKIM/DMARC) verified.
+- [ ] No secrets, placeholders, test data or staging references.
+- [ ] Backups and a restore tested where a database exists.
+- [ ] Uptime monitoring, error tracking and alert owner confirmed.
+- [ ] Lighthouse categories meet the guide's 90+ targets, or deviations explicitly reviewed before sign-off.
+- [ ] Production indexing, sitemap and client-authorized analytics setup verified.
+- [ ] Applicable privacy/cookie requirements approved.
+- [ ] Domain, hosting and integration ownership documented.
+- [ ] Handover and written maintenance/change terms delivered.
+- [ ] Tested rollback plan references the previous release and any data migration recovery.
+- [ ] Production release identifies the approved main-branch commit/tag.
+- [ ] Post-launch check arranged for 24–48 hours after launch.
+- [ ] Sam's sign-off recorded below before release.
+
+Approver: __________ Date: __________ Commit/tag: __________
+Outstanding exceptions and explicit decision: __________
+
+## 13. Delivery process and reusable prompts — guide Sections 13–14
+
+- [ ] Work divided into focused changes and reviewed before acceptance.
+- [ ] Architecture and guide remain the shared source of truth.
+- [ ] Material money, personal-data, legal, deployment and DNS decisions remain with the human owner.
+- [ ] Kick-off, change-request and pre-launch audit prompts reused from Section 14.
+- [ ] Lessons learned added to the guide through an intentional reviewed update.
+
+## 14. Post-launch business verification
+
+- [ ] Public HTML, metadata, sitemap, redirects and main enquiry path checked on the deployed site.
+- [ ] Client-authorized tracking distinguishes successful enquiry, booking and other primary actions.
+- [ ] Consent and sensitive-data exclusion verified before tracking is enabled.
+- [ ] Baseline search impressions/clicks and enquiry counts recorded if access is available.
+- [ ] Search Console indexing and crawl issues reviewed; rankings or revenue gains not assumed.
+- [ ] Monitoring checked and 24–48 hour review completed; remaining issues assigned.

@@ -22,7 +22,7 @@ export function WhatsAppFloat() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.92, y: 12 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
-              className="fixed bottom-24 right-6 z-50 w-72 bg-background border border-border rounded-2xl shadow-2xl overflow-hidden"
+              className="fixed bottom-44 right-6 z-50 w-72 bg-background border border-border rounded-2xl shadow-2xl overflow-hidden"
             >
               {/* Header */}
               <div className="flex items-center justify-between px-5 py-4 border-b border-border">
@@ -33,7 +33,7 @@ export function WhatsAppFloat() {
                 <button
                   onClick={() => setOpen(false)}
                   aria-label="Close contact card"
-                  className="w-7 h-7 rounded-full hover:bg-secondary flex items-center justify-center transition-colors"
+                  className="w-11 h-11 rounded-full hover:bg-secondary flex items-center justify-center transition-colors"
                 >
                   <X className="w-4 h-4 text-muted-foreground" />
                 </button>
@@ -101,7 +101,7 @@ export function WhatsAppFloat() {
         aria-label="Contact us"
         className="fixed bottom-24 right-6 z-50 group"
       >
-        <span className="absolute inset-0 rounded-full bg-accent opacity-20 animate-ping [animation-delay:0.8s]" />
+        <span className="absolute inset-0 rounded-full bg-accent opacity-20 motion-safe:animate-ping [animation-delay:0.8s]" />
         <motion.span
           animate={{ rotate: open ? 45 : 0 }}
           transition={{ duration: 0.2 }}

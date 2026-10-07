@@ -132,3 +132,66 @@
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground));
 }
+
+/* Partner originals are preserved in contain-fit cards. Duplicate groups form a seamless loop. */
+.partners-window { overflow: hidden; }
+.partners-track { display: flex; width: max-content; animation: partners-left 35s linear infinite; }
+.partners-group { display: flex; flex: 0 0 auto; gap: 1.5rem; padding-right: 1.5rem; margin: 0; list-style: none; }
+.partner-logo-card { width: 220px; height: 140px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid var(--border); border-radius: 1rem; background: white; }
+.partners-window:hover .partners-track,
+.partners-window:focus-within .partners-track { animation-play-state: paused; }
+@keyframes partners-left { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) {
+  .partners-track { animation: none; width: 100%; }
+  .partners-group { flex: 1 1 auto; flex-wrap: wrap; justify-content: center; padding: 0 1rem; }
+  .partners-duplicate { display: none; }
+}
+
+.checkup-dialog:not([open]) { display: none; }
+.checkup-dialog::backdrop { background: rgb(0 0 0 / 55%); }
+
+
+/* Keep the hero's core message above the fold without clipping enlarged text. */
+.home-hero { min-height: 100svh; box-sizing: border-box; padding-top: clamp(6rem, 16svh, 8rem); padding-bottom: clamp(9.5rem, 23svh, 10rem); }
+.home-hero-content { display: flex; flex-direction: column; align-items: flex-start; gap: clamp(.75rem, 2.3svh, 1.25rem); }
+.home-hero-heading { font-size: clamp(1.5rem, 4.6vw, 4.25rem); line-height: 1.05; margin: 0; }
+.home-hero-heading span { display: block; }
+.home-hero-description { font-size: clamp(.875rem, 1.4vw, 1.125rem); line-height: 1.45; margin: 0; }
+.home-hero-experience { font-size: clamp(.75rem, 1.1vw, .875rem); line-height: 1.4; margin: 0; }
+.home-hero-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; width: 100%; max-width: 26rem; }
+@media (min-width: 640px) { .home-hero-actions { display: flex; flex-wrap: wrap; width: auto; max-width: none; gap: .75rem; } }
+@media (max-height: 540px) and (min-width: 640px) {
+  .home-hero { padding-top: 6rem; padding-bottom: 1.5rem; }
+  .home-hero-content { max-width: min(72rem, calc(100vw - 10rem)); gap: .625rem; }
+  .home-hero-heading { font-size: clamp(1.5rem, 4vw, 3rem); }
+  .home-hero-description { font-size: .875rem; }
+  .home-hero-experience { font-size: .75rem; }
+}
+
+
+.home-hero-grid { width: 100%; }
+.hero-project-desktop { display: none; }
+.hero-project-mobile { display: block; }
+@media (min-width: 1280px) {
+  .home-hero-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); align-items: center; gap: 2.5rem; }
+  .hero-project-desktop { display: block; min-width: 0; }
+  .hero-project-mobile { display: none; }
+  .hero-project-desktop .featured-project { max-width: 27rem; margin-left: auto; }
+  .home-hero-heading { font-size: clamp(2rem, min(4.4vw, 8svh), 4.25rem); }
+}
+@media (max-height: 540px) { .hero-project-desktop { display: none; } .hero-project-mobile { display: block; } .home-hero-grid { display: block; } }
+
+
+.project-orbit { position: relative; width: 100%; max-width: 27rem; margin-left: auto; }
+.project-orbit-card { transform-origin: 50% 110%; }
+.project-orbit-card[data-phase="exit"] { animation: project-orbit-out .45s ease-in both; pointer-events: none; }
+.project-orbit-card[data-phase="enter"] { animation: project-orbit-in .45s ease-out both; }
+.project-preview-image { position: relative; aspect-ratio: 16 / 9; overflow: hidden; }
+.project-preview-copy { min-height: 12rem; }
+.project-orbit-button { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--background); border: 1px solid var(--border); }
+.project-orbit-button:hover { background: var(--secondary); }
+.project-orbit-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.project-orbit-button:disabled { opacity: .45; cursor: default; }
+@keyframes project-orbit-out { from { opacity: 1; transform: rotate(0deg) scale(1); } to { opacity: 0; transform: rotate(-18deg) scale(.94); } }
+@keyframes project-orbit-in { from { opacity: 0; transform: rotate(18deg) scale(.94); } to { opacity: 1; transform: rotate(0deg) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .project-orbit-card { animation: none !important; transform: none !important; } }

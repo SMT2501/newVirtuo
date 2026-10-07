@@ -1,3 +1,6 @@
+import { FeaturedProjectPreview } from "@/components/FeaturedProjectPreview";
+import { CheckupTrigger } from "@/components/DigitalCheckup";
+import { PartnersStrip } from "@/components/PartnersStrip";
 import { Layout } from "@/components/layout/Layout";
 import { Seo } from "@/components/Seo";
 import { Link } from "wouter";
@@ -12,61 +15,41 @@ export default function Home() {
         path="/"
       />
       {/* Hero Section */}
-      <section className="relative min-h-svh flex flex-col justify-end pb-24 px-4 md:px-12 pt-32 overflow-hidden">
-        <div className="absolute inset-0 z-0">
-          <img
-            src="/images/virtuo-hero.webp"
-            alt="Premium Digital Experience"
-            width={1600}
-            height={873}
-            loading="eager"
-            decoding="async"
-            className="w-full h-full object-cover object-center opacity-40 scale-105"
-          />
+      <section className="home-hero relative flex items-center px-4 md:px-12 overflow-hidden">
+        <div className="absolute inset-0 z-0" aria-hidden="true">
+          <img src="/images/virtuo-hero.webp" alt="" width={1600} height={873} loading="eager" decoding="async" className="w-full h-full object-cover object-center opacity-40 scale-105" />
           <div className="absolute inset-0 bg-linear-to-t from-background via-background/60 to-transparent mix-blend-multiply" />
           <div className="absolute inset-0 bg-background/20 backdrop-blur-[2px]" />
         </div>
-
-        <div className="relative z-10 max-w-6xl mx-auto w-full">
-          <h1 className="text-5xl md:text-7xl lg:text-8xl font-serif leading-none tracking-[-0.03em] text-foreground mb-8 text-balance">
-            We Build Digital Experiences That Grow Businesses.
+        <div className="home-hero-grid relative z-10 max-w-6xl mx-auto w-full">
+          <div className="home-hero-content">
+          <h1 className="home-hero-heading font-serif tracking-[-0.03em] text-foreground">
+            <span>Websites and Digital </span> 
+            <span> Systems </span>
+            <span>That Move Organisations </span>  
+            <span> Forward.</span>
           </h1>
-
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-12 border-t border-foreground/10 pt-8">
-            <div className="max-w-xl">
-              <p className="text-lg md:text-xl text-foreground/75 font-light leading-relaxed mb-8 text-balance">
-                From bespoke websites to enterprise AI transformation — we combine hands-on technical execution with 9+ years of enterprise strategy experience.
-              </p>
-              <div className="flex flex-wrap gap-4">
-                <Link href="/contact" className="bg-primary text-primary-foreground px-8 py-4 rounded-full text-sm font-semibold tracking-wide hover:bg-primary/90 transition-colors flex items-center gap-2 group">
-                  Start Your Project
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                </Link>
-                <Link href="/portfolio" className="border border-border bg-background/50 backdrop-blur-sm text-foreground px-8 py-4 rounded-full text-sm font-semibold tracking-wide hover:bg-secondary transition-colors">
-                  Explore Our Work
-                </Link>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-x-12 gap-y-8">
-              <div>
-                <div className="text-3xl md:text-4xl font-serif mb-1 text-foreground">50+</div>
-                <div className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">Projects Delivered</div>
-              </div>
-              <div>
-                <div className="text-3xl md:text-4xl font-serif mb-1 text-foreground">98%</div>
-                <div className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">Client Satisfaction</div>
-              </div>
-              <div>
-                <div className="text-3xl md:text-4xl font-serif mb-1 text-foreground">9+ Yrs</div>
-                <div className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">Enterprise Experience</div>
-              </div>
-              <div>
-                <div className="text-3xl md:text-4xl font-serif mb-1 text-foreground">Global</div>
-                <div className="text-xs text-muted-foreground uppercase tracking-widest font-semibold">Clients Worldwide</div>
-              </div>
-            </div>
+          <p className="home-hero-description max-w-2xl text-foreground/85">
+            We build websites, application portals, e-commerce platforms and workflow automation for businesses and institutions.
+          </p>
+          <p className="home-hero-experience text-foreground/80">Experience working with PASA, WITS and DUT.</p>
+          <div className="home-hero-actions">
+            <CheckupTrigger className="bg-primary text-primary-foreground px-3 sm:px-6 min-h-11 py-3 rounded-full text-sm font-semibold hover:bg-primary/90 transition-colors inline-flex items-center justify-center gap-2 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2">
+              Find My Solution <ArrowRight aria-hidden="true" className="w-4 h-4 hidden sm:block" />
+            </CheckupTrigger>
+            <Link href="/contact" className="border border-border bg-background/60 px-3 sm:px-6 min-h-11 py-3 rounded-full text-sm font-semibold hover:bg-secondary inline-flex items-center justify-center focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2">Start Your Project</Link>
           </div>
+          </div>
+          <div className="hero-project-desktop"><FeaturedProjectPreview titleId="featured-project-desktop-title" /></div>
+        </div>
+      </section>
+      <section aria-label="Featured project" className="hero-project-mobile px-4 py-8 border-t border-border"><div className="max-w-xl mx-auto"><FeaturedProjectPreview titleId="featured-project-mobile-title" /></div></section>
+      <section aria-label="Studio experience" className="border-y border-border bg-secondary/30 px-4 md:px-12 py-7">
+        <div className="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div><p className="text-2xl font-serif">50+</p><p className="text-xs text-muted-foreground uppercase tracking-wide">Projects Delivered</p></div>
+          <div><p className="text-2xl font-serif">98%</p><p className="text-xs text-muted-foreground uppercase tracking-wide">Client Satisfaction</p></div>
+          <div><p className="text-2xl font-serif">9+ Yrs</p><p className="text-xs text-muted-foreground uppercase tracking-wide">Enterprise Experience</p></div>
+          <div><p className="text-2xl font-serif">Global</p><p className="text-xs text-muted-foreground uppercase tracking-wide">Clients Worldwide</p></div>
         </div>
       </section>
 
@@ -74,10 +57,10 @@ export default function Home() {
       <section className="py-32 px-4 md:px-12 bg-secondary/30">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-3xl md:text-5xl font-serif leading-tight mb-8">
-            A studio with one foot in scrappy student-founder hustle, and the other in enterprise-grade strategic credibility.
+            We believe technology should help organisations do more for the people they serve.
           </h2>
           <p className="text-lg text-foreground/75 font-light leading-relaxed mb-12 max-w-2xl mx-auto">
-            Virtuo Designs combines hands-on development capability with deep business analysis. We don't just write code — we design solutions that solve real-world problems.
+            Your website, people and processes should work together. We start with your goals and requirements, then scope a digital solution that fits the way your organisation operates.
           </p>
           <Link href="/about" className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-widest text-accent hover:text-accent/80 transition-colors">
             Our Story <ArrowRight className="w-4 h-4" />
@@ -85,21 +68,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Enterprise Trust Strip */}
-      <section className="py-14 px-4 md:px-12 border-y border-border">
-        <div className="max-w-7xl mx-auto">
-          <p className="text-center text-xs font-bold tracking-widest uppercase text-muted-foreground mb-8">
-            Enterprise experience across industry leaders
-          </p>
-          <div className="flex flex-wrap justify-center items-center gap-x-12 gap-y-4">
-            {["Shoprite", "Sasol", "Mediclinic", "MTN"].map((brand) => (
-              <span key={brand} className="text-xl md:text-2xl font-serif font-semibold text-foreground/55 hover:text-foreground/80 transition-colors tracking-wide">
-                {brand}
-              </span>
-            ))}
-          </div>
-        </div>
-      </section>
+      <PartnersStrip />
 
       {/* Selected Work */}
       <section className="py-32 px-4 md:px-12 max-w-7xl mx-auto">

@@ -1,0 +1,11 @@
+﻿import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import {mkdir} from 'node:fs/promises';
+const require=createRequire(import.meta.url);const esbuild=createRequire(require.resolve('vite/package.json'))('esbuild');
+await mkdir('tmp/checkup-tests',{recursive:true});globalThis.transportRequests=[];
+await esbuild.build({entryPoints:['src/lib/checkup-leads.ts'],bundle:true,platform:'node',format:'esm',outfile:'tmp/checkup-tests/transport.mjs',plugins:[{name:'sdk-stubs',setup(build){build.onResolve({filter:/^firebase\/(app|functions)$/},args=>({path:args.path,namespace:'sdk'}));build.onLoad({filter:/.*/,namespace:'sdk'},args=>({loader:'js',contents:args.path==='firebase/app'?'export const getApps=()=>[{name:"checkup-enquiries"}];export const initializeApp=()=>({name:"checkup-enquiries"});':'export const getFunctions=app=>app;export const httpsCallable=(app,name)=>async data=>{globalThis.transportRequests.push({name,data});return {data:globalThis.rejectSave?{saved:false}:{saved:true,leadId:"abcdefghijklmnopqrst",token:"a".repeat(64)}}};'}));}}]});
+const client=await import('../tmp/checkup-tests/transport.mjs');const answers={organisation:'business',goal:'presence'};
+const lead=await client.createCheckupLead({name:'Test Person',email:'test@example.test',phone:'',consent:true},answers,'');assert.deepEqual(Object.keys(lead).sort(),['leadId','token']);
+await client.updateCheckupLead({...lead,saved:true},answers,1);assert.deepEqual(Object.keys(transportRequests[1].data).sort(),['answers','leadId','revision','token']);assert.equal(transportRequests[1].name,'saveCheckupLead');
+globalThis.rejectSave=true;await assert.rejects(client.createCheckupLead({name:'Test Person',email:'test@example.test',phone:'',consent:true},answers,''));await assert.rejects(client.updateCheckupLead(lead,answers,2));
+console.log('PASS: actual client helper strips response-only fields, sends exact server update contract and rejects unconfirmed saves. Firebase SDK mocked; no network request.');

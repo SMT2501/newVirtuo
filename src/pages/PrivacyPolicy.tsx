@@ -1,7 +1,16 @@
+import checkupPolicy from "../../functions/checkup-policy.json";
 import { Layout } from "@/components/layout/Layout";
 import { Seo } from "@/components/Seo";
 
 const sections = [
+  {
+    title: "Digital checkup enquiries [LEGAL REVIEW REQUIRED]",
+    content: `If you choose to submit the contact step during the digital checkup, we collect your name, email, optional phone number, selected answers and your consent to enquiry follow-up. We save the answers already given and subsequent answers, even if the quiz remains unfinished, so the team can discuss your needs. You can instead continue without sharing contact details; in that case no quiz enquiry record is created.
+
+Quiz enquiry records are stored in Google Firebase/Firestore, with expiry set ${checkupPolicy.retentionDays} days after submission. Automated expiry deletion must be configured and is asynchronous; it may occur after the expiry time. Internal admin/staff can review these enquiries. We use a short-lived hashed request identifier for submission abuse control; raw IP addresses are not stored in the enquiry record. This follow-up permission is not consent to unrelated marketing.
+
+Only a quiz invitation preference and visit-start timestamp are stored in session storage. Quiz contact details and database update credentials are held only in page memory. Contact hello@virtuodesigns.co.za for access, correction or deletion requests. This draft requires owner/legal review, including retention implementation, responsible privacy contact and processing arrangements, before launch.`,
+  },
   {
     title: "1. Who We Are",
     content: `Virtuo Designs (Pty) Ltd ("Virtuo", "we", "us", "our") is a web development and digital consulting studio based in Cape Town, South Africa. Our website is https://virtuodesigns.co.za.
@@ -17,6 +26,7 @@ For any privacy-related queries, contact us at: hello@virtuodesigns.co.za`,
 • Phone number / WhatsApp number
 • Company name
 • Project description and budget range (submitted via our contact form)
+• Digital checkup answers and follow-up consent (when its optional contact step is submitted)
 
 We do not collect sensitive personal information as defined under POPIA. We do not use tracking cookies beyond standard analytics.`,
   },
@@ -32,16 +42,16 @@ We do not collect sensitive personal information as defined under POPIA. We do n
 We do not use your information for unsolicited marketing without your consent, and we never sell, rent, or trade your personal data to any third party.`,
   },
   {
-    title: "4. Legal Basis for Processing (POPIA)",
+    title: "4. Legal Basis for Processing (POPIA) [LEGAL REVIEW REQUIRED]",
     content: `We process your personal information under the following lawful grounds as set out in the Protection of Personal Information Act 4 of 2013 (POPIA):
 
-• Consent: You have given us consent by voluntarily submitting our contact form.
+• Consent: You have given us consent by voluntarily submitting our contact form, or explicitly agreeing to enquiry follow-up at the digital checkup contact step.
 • Legitimate interest: We have a legitimate interest in responding to business enquiries.
 • Contractual necessity: Where we have an active client relationship.`,
   },
   {
     title: "5. Data Storage & Security",
-    content: `Your enquiry data is transmitted securely via Formspree (formspree.io), an industry-standard form submission service. We take reasonable technical and organisational steps to protect your personal information from unauthorised access, loss, or disclosure.
+    content: `Contact-form enquiry data is transmitted securely via Formspree (formspree.io), an industry-standard form submission service. We take reasonable technical and organisational steps to protect your personal information from unauthorised access, loss, or disclosure.
 
 We retain your contact information only for as long as necessary to fulfil the purpose for which it was collected, or as required by law.`,
   },
@@ -50,6 +60,7 @@ We retain your contact information only for as long as necessary to fulfil the p
     content: `We use the following third-party services that may process your data:
 
 • Formspree — for contact form submission processing
+• Google Firebase / Firestore — for consented quiz enquiries and existing portal services
 • Google Fonts — for typography (no personal data collected)
 • Vercel / hosting provider — for website serving
 

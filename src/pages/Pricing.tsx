@@ -1,57 +1,11 @@
+import { websitePackages, enquiryHref } from "@/config/sales";
 import { Layout } from "@/components/layout/Layout";
 import { Seo } from "@/components/Seo";
 import { Link } from "wouter";
 import { Check } from "lucide-react";
 
 export default function Pricing() {
-  const plans = [
-    {
-      name: "Starter",
-      price: "R12,500",
-      desc: "A powerful, professional digital presence built to convert — for businesses entering the digital arena.",
-      features: [
-        "Up to 5 Pages",
-        "Mobile Responsive Design",
-        "Contact Form Integration",
-        "On-Page SEO Optimisation",
-        "Performance & Core Web Vitals",
-        "2-Week Delivery Timeline",
-      ],
-      popular: false,
-    },
-    {
-      name: "Professional",
-      price: "R28,500",
-      desc: "Our flagship tier — custom-crafted design, advanced capabilities, and the digital edge that serious businesses demand.",
-      features: [
-        "Up to 12 Pages",
-        "Fully Custom UI/UX (Zero Templates)",
-        "Advanced Technical SEO",
-        "WhatsApp & Live Chat Integration",
-        "CMS Setup (Content Management)",
-        "AI Chatbot Integration",
-        "Analytics Dashboard",
-        "3-Week Delivery Timeline",
-      ],
-      popular: true,
-    },
-    {
-      name: "Enterprise",
-      price: "R65,000+",
-      desc: "End-to-end web applications, platforms, and e-commerce ecosystems built to operate at global scale.",
-      features: [
-        "Unlimited Pages & Screens",
-        "Full E-Commerce / Web Application",
-        "Payment Gateway (Multi-Currency)",
-        "User Authentication & Roles",
-        "Custom Admin Dashboard",
-        "API Integrations & Microservices",
-        "AI/ML Feature Integration",
-        "4–8 Week Delivery Timeline",
-      ],
-      popular: false,
-    },
-  ];
+  const plans = websitePackages;
 
   const consultingTiers = [
     { name: "Strategy Day", price: "R4,500", unit: "/ day", desc: "Focused workshops on AI integration, CRM strategy, or digital transformation roadmapping." },
@@ -101,12 +55,12 @@ export default function Pricing() {
                   ))}
                 </ul>
 
-                <Link href="/contact" className={`w-full text-center py-4 rounded-full text-sm font-semibold tracking-wide transition-colors ${
+                <Link href={enquiryHref(`I would like a quote for the ${plan.name} package (${plan.price}).`, plan.name)} className={`w-full text-center py-4 rounded-full text-sm font-semibold tracking-wide transition-colors ${
                   plan.popular
                     ? 'bg-accent text-accent-foreground hover:bg-accent/90'
                     : 'border border-border hover:bg-secondary text-foreground'
                 }`}>
-                  Select Plan
+                  Request This Package
                 </Link>
               </div>
             ))}

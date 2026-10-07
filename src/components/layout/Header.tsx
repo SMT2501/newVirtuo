@@ -41,7 +41,7 @@ export function Header() {
           </Link>
 
           {/* Desktop Nav */}
-          <nav className="hidden md:flex items-center gap-6">
+          <nav className="hidden xl:flex items-center gap-6">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
@@ -63,7 +63,7 @@ export function Header() {
 
           {/* Mobile Toggle */}
           <button
-            className="md:hidden text-foreground p-2"
+            className="xl:hidden text-foreground p-2 min-h-11 min-w-11"
             aria-label={isMobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
             aria-expanded={isMobileMenuOpen}
             aria-controls="mobile-navigation"
@@ -75,7 +75,7 @@ export function Header() {
 
         {/* Mobile Nav */}
         {isMobileMenuOpen && (
-          <div id="mobile-navigation" className="md:hidden absolute top-full left-0 right-0 mt-2 bg-background/95 backdrop-blur-lg border border-border rounded-2xl shadow-xl overflow-hidden">
+          <div id="mobile-navigation" className="xl:hidden absolute top-full left-0 right-0 mt-2 bg-background/95 backdrop-blur-lg border border-border rounded-2xl shadow-xl overflow-hidden">
             <nav className="flex flex-col py-4 px-4 gap-4">
               {navLinks.map((link) => (
                 <Link

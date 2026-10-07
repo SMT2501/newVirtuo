@@ -1,12 +1,14 @@
-import { useEffect } from "react";
+import { createContext, useContext, useEffect } from "react";
 
-interface SeoProps {
+export interface SeoProps {
   title: string;
   description: string;
   path: string;
   keywords?: string;
   image?: string;
 }
+
+export const SeoCapture = createContext<((props: SeoProps) => void) | null>(null);
 
 const SITE_NAME = "Virtuo Designs";
 const SITE_URL = "https://virtuodesigns.co.za";
@@ -49,6 +51,8 @@ function setJsonLd(id: string, data: object) {
 }
 
 export function Seo({ title, description, path, keywords, image }: SeoProps) {
+  const capture = useContext(SeoCapture);
+  capture?.({ title, description, path, keywords, image });
   useEffect(() => {
     const fullTitle = `${title} | ${SITE_NAME}`;
     const url = `${SITE_URL}${path}`;
