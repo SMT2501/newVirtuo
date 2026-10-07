@@ -129,7 +129,7 @@ Firestore rules/indexes/TTL configuration released to newvirtuo. The quiz callab
 
 ## Project rotation - 7 October 2026
 
-FeaturedProjectPreview cycles Umnini Community Trust, Campus Marketplace and MJP Security with sequential counterclockwise exit/entry arcs and one mounted card. Rotation waits five seconds between transitions and pauses for hover, keyboard focus and offscreen/background visibility. There are no buttons or counters beneath the card. Reduced motion disables automatic cycling/rotation. CSS animation-end and a bounded timer fallback complete phases, with cleanup on unmount. Campus uses its supplied logo labelled Project identity preview because the existing concept image contains unverified figures; the other two use actual screenshots. Three portfolio anchors match the cards. Desktop placement and mobile below-hero placement retained. No new outcome/endorsement claims.
+FeaturedProjectPreview cycles Umnini Community Trust, Campus Marketplace and MJP Security with sequential counterclockwise exit/entry arcs and one mounted card. Rotation waits five seconds between transitions and pauses for hover, keyboard focus and offscreen/background visibility. There are no buttons or counters beneath the card. Reduced motion disables automatic cycling/rotation. CSS animation-end and a bounded timer fallback complete phases, with cleanup on unmount. Campus now uses the user-supplied campus-market.png listing screenshot; all three previews use actual screenshots. Three portfolio anchors match the cards. Desktop placement and mobile below-hero placement retained. No new outcome/endorsement claims.
 
 ## Publication verification - 7 October 2026
 
