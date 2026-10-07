@@ -15,12 +15,13 @@ export default function Home() {
         path="/"
       />
       {/* Hero Section */}
-      <section className="home-hero relative flex items-center px-4 md:px-12 overflow-hidden">
+      <div className="relative overflow-hidden">
         <div className="absolute inset-0 z-0" aria-hidden="true">
           <img src="/images/virtuo-hero.webp" alt="" width={1600} height={873} loading="eager" decoding="async" className="w-full h-full object-cover object-center opacity-40 scale-105" />
           <div className="absolute inset-0 bg-linear-to-t from-background via-background/60 to-transparent mix-blend-multiply" />
           <div className="absolute inset-0 bg-background/20 backdrop-blur-[2px]" />
         </div>
+      <section className="home-hero relative flex items-center px-4 md:px-12">
         <div className="home-hero-grid relative z-10 max-w-6xl mx-auto w-full">
           <div className="home-hero-content">
           <h1 className="home-hero-heading font-serif tracking-[-0.03em] text-foreground">
@@ -43,7 +44,8 @@ export default function Home() {
           <div className="hero-project-desktop"><FeaturedProjectPreview titleId="featured-project-desktop-title" /></div>
         </div>
       </section>
-      <section aria-label="Featured project" className="hero-project-mobile px-4 py-8 border-t border-border"><div className="max-w-xl mx-auto"><FeaturedProjectPreview titleId="featured-project-mobile-title" /></div></section>
+      <section aria-label="Featured project" className="hero-project-mobile relative z-10 px-4 py-8"><div className="max-w-xl mx-auto"><FeaturedProjectPreview titleId="featured-project-mobile-title" /></div></section>
+      </div>
       <section aria-label="Studio experience" className="border-y border-border bg-secondary/30 px-4 md:px-12 py-7">
         <div className="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-6">
           <div><p className="text-2xl font-serif">50+</p><p className="text-xs text-muted-foreground uppercase tracking-wide">Projects Delivered</p></div>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowUpRight, Pause, Play, RotateCcw } from 'lucide-react';
+import { ArrowUpRight } from 'lucide-react';
 
 export const featuredProjects = [
   { title: 'Umnini Community Trust', category: 'Organisation website', description: 'An informational website for a community organisation.', image: '/images/umnini-preview.png', width: 1920, height: 1080, alt: 'Screenshot of the Umnini Community Trust website', anchor: 'umnini-community-trust' },
@@ -11,7 +11,6 @@ type Phase = 'idle' | 'exit' | 'enter';
 export function FeaturedProjectPreview({ titleId }: { titleId: string }) {
   const [active, setActive] = useState(0);
   const [phase, setPhase] = useState<Phase>('idle');
-  const [paused, setPaused] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const [visible, setVisible] = useState(false);
@@ -20,7 +19,7 @@ export function FeaturedProjectPreview({ titleId }: { titleId: string }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const pending = useRef(0);
   const project = featuredProjects[active];
-  const stopped = paused || hovered || focused || !visible || !pageVisible || reducedMotion || phase !== 'idle';
+  const stopped = hovered || focused || !visible || !pageVisible || reducedMotion || phase !== 'idle';
 
   const selectProject = useCallback((index: number) => {
     if (phase !== 'idle' || index === active) return;
@@ -53,7 +52,7 @@ export function FeaturedProjectPreview({ titleId }: { titleId: string }) {
 
   useEffect(() => {
     if (stopped) return;
-    const timer = window.setTimeout(() => selectProject(active + 1), 8000);
+    const timer = window.setTimeout(() => selectProject(active + 1), 5000);
     return () => window.clearTimeout(timer);
   }, [active, stopped, selectProject]);
 
@@ -71,10 +70,5 @@ export function FeaturedProjectPreview({ titleId }: { titleId: string }) {
       <div className="project-preview-image bg-white"><img key={project.image} src={project.image} width={project.width} height={project.height} alt={project.alt} loading="lazy" decoding="async" className="w-full h-full object-contain" />{project.identity && <span className="absolute bottom-2 right-2 rounded bg-background/95 px-2 py-1 text-[11px] text-foreground">Project identity preview</span>}</div>
       <div className="project-preview-copy p-5" aria-live={focused ? 'polite' : 'off'} aria-atomic="true"><p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">{project.category}</p><h2 id={titleId} className="font-serif text-2xl">{project.title}</h2><p className="text-sm text-muted-foreground leading-relaxed mt-2">{project.description}</p><a href={`/portfolio#${project.anchor}`} className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold mt-3 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2">View project <ArrowUpRight className="w-4 h-4" aria-hidden="true" /></a></div>
     </article>
-    <div className="project-orbit-controls flex flex-wrap items-center justify-between gap-1 mt-3">
-      <div className="flex items-center gap-1"><button type="button" disabled={phase !== 'idle'} onClick={() => selectProject(active - 1)} aria-label="Previous project" className="project-orbit-button"><ArrowLeft className="w-4 h-4" aria-hidden="true" /></button>{featuredProjects.map((item, index) => <button type="button" key={item.title} disabled={phase !== 'idle'} onClick={() => selectProject(index)} aria-label={`Show ${item.title}`} aria-pressed={active === index} className="project-orbit-button"><span className={`size-2 rounded-full ${active === index ? 'bg-foreground' : 'bg-foreground/30'}`} aria-hidden="true" /></button>)}<button type="button" disabled={phase !== 'idle'} onClick={() => selectProject(active + 1)} aria-label="Next project counterclockwise" className="project-orbit-button"><RotateCcw className="w-4 h-4" aria-hidden="true" /></button></div>
-      <button type="button" onClick={() => setPaused(!paused)} disabled={reducedMotion} aria-label={reducedMotion ? 'Automatic rotation disabled for reduced motion' : paused ? 'Resume automatic project rotation' : 'Pause automatic project rotation'} aria-pressed={paused} className="project-orbit-button">{paused ? <Play className="w-4 h-4" aria-hidden="true" /> : <Pause className="w-4 h-4" aria-hidden="true" />}</button>
-      <span className="text-xs text-muted-foreground">{active + 1} / {featuredProjects.length}</span>
-    </div>
   </div>;
 }

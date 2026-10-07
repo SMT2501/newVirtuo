@@ -195,3 +195,17 @@
 @keyframes project-orbit-out { from { opacity: 1; transform: rotate(0deg) scale(1); } to { opacity: 0; transform: rotate(-18deg) scale(.94); } }
 @keyframes project-orbit-in { from { opacity: 0; transform: rotate(18deg) scale(.94); } to { opacity: 1; transform: rotate(0deg) scale(1); } }
 @media (prefers-reduced-motion: reduce) { .project-orbit-card { animation: none !important; transform: none !important; } }
+
+/* Mobile content should fill its natural height instead of a centred viewport. */
+@media (max-width: 767px) {
+  .home-hero { min-height: 0; align-items: flex-start; padding-top: 7rem; padding-bottom: 2.5rem; }
+  .home-hero-content { max-width: 100%; gap: 1rem; }
+  .home-hero-heading { font-size: clamp(2rem, 8vw, 3rem); line-height: 1.08; }
+  .home-hero-heading span { display: inline; }
+  .home-hero-description { font-size: 1rem; line-height: 1.5; }
+  .home-hero-experience { font-size: .875rem; line-height: 1.5; }
+  .home-hero-actions { width: 100%; max-width: 26rem; }
+}
+@media (max-width: 380px) {
+  .home-hero-actions { grid-template-columns: 1fr; }
+}
