@@ -15,6 +15,7 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const functions = getFunctions(app);
+export const documentSharePdfUrl = `https://us-central1-${firebaseConfig.projectId}.cloudfunctions.net/downloadDocumentSharePdf`;
 const provisioningAuth = getAuth(provisioningApp);
 export const analytics = analyticsIsSupported().then((supported) => (
   supported ? getAnalytics(app) : null

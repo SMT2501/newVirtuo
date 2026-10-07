@@ -53,6 +53,20 @@ service cloud.firestore {
         && projectVisitor(data.projectId);
     }
 
+    function documentShareVisitor(documentId, data) {
+      return signedIn()
+        && data.clientVisible == true
+        && data.signingShareEnabled == true
+        && data.needsSignature == true
+        && data.contentType == 'application/pdf'
+        && data.storagePath != null
+        && data.status in ['awaiting_signature', 'signed']
+        && (!('expiresAt' in data) || data.expiresAt == null || data.expiresAt > request.time)
+        && exists(/databases/$(database)/documents/documents/$(documentId)/access/$(request.auth.uid))
+        && get(/databases/$(database)/documents/documents/$(documentId)/access/$(request.auth.uid)).data.expiresAt > request.time
+        && get(/databases/$(database)/documents/documents/$(documentId)/access/$(request.auth.uid)).data.shareVersion == data.signingShareVersion;
+    }
+
     match /checkupLeads/{leadId} {
       allow read: if internalUser();
       allow create, update, delete: if false;
@@ -90,7 +104,8 @@ service cloud.firestore {
       allow read: if internalUser()
         || legacyDocumentOwner(resource.data)
         || (resource.data.clientVisible == true && documentRecipient(resource.data))
-        || projectDocumentVisitor(resource.data);
+        || projectDocumentVisitor(resource.data)
+        || documentShareVisitor(documentId, resource.data);
       allow create: if internalUser()
         || legacyDocumentOwner(request.resource.data)
         || (accountMember(request.resource.data.accountId) && request.resource.data.uploaderId == request.auth.uid);
@@ -111,7 +126,8 @@ service cloud.firestore {
     match /documentEvents/{eventId} {
       allow read: if internalUser()
         || request.auth.uid == resource.data.actorId
-        || projectVisitor(get(/databases/$(database)/documents/documents/$(resource.data.documentId)).data.projectId);
+        || projectVisitor(get(/databases/$(database)/documents/documents/$(resource.data.documentId)).data.projectId)
+        || documentShareVisitor(resource.data.documentId, get(/databases/$(database)/documents/documents/$(resource.data.documentId)).data);
       allow create: if internalUser()
         || (
           signedIn()
@@ -144,6 +160,14 @@ service cloud.firestore {
           && request.resource.data.eventType in ['viewed', 'downloaded']
           && request.resource.data.createdAt == request.time
           && projectVisitor(get(/databases/$(database)/documents/$(request.resource.data.documentId)).data.projectId)
+        )
+        || (
+          signedIn()
+          && request.resource.data.actorId == request.auth.uid
+          && request.resource.data.keys().hasOnly(['accountId', 'documentId', 'eventType', 'actorId', 'createdAt'])
+          && request.resource.data.eventType in ['viewed', 'downloaded']
+          && request.resource.data.createdAt == request.time
+          && documentShareVisitor(request.resource.data.documentId, get(/databases/$(database)/documents/documents/$(request.resource.data.documentId)).data)
         );
       allow update, delete: if false;
     }

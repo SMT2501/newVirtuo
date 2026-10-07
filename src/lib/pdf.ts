@@ -58,11 +58,12 @@ export async function downloadInvoicePdf(invoice: InvoiceRecord, accountName: st
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   const total = invoiceTotal(invoice);
+  const invoiceNumber = invoice.number || invoice.id.slice(0, 8).toUpperCase();
   const lineItems = invoice.lineItems?.length ? invoice.lineItems : [{ description: invoice.description || "Professional services", quantity: 1, unitPrice: total }];
 
   page.drawText("VIRTUO DESIGNS", { x: 124, y: 797, size: 15, font: bold, color: rgb(0.07, 0.07, 0.07) });
-  const studioLine = "Web Design, Development & Technology Studio";
-  page.drawText(studioLine, { x: 124, y: 780, size: 8, font, color: rgb(0.42, 0.42, 0.42) });
+  page.drawText("Web Design, Development & Digital Consulting", { x: 124, y: 780, size: 8, font, color: rgb(0.42, 0.42, 0.42) });
+  page.drawText("Cape Town, South Africa | CIPC Reg. 2025/014412/07", { x: 124, y: 766, size: 7.2, font, color: rgb(0.42, 0.42, 0.42) });
   try {
     const logoResponse = await fetch("/virtuo-designs-letterhead-logo.png");
     if (!logoResponse.ok) throw new Error("Letterhead logo is unavailable.");
@@ -74,7 +75,7 @@ export async function downloadInvoicePdf(invoice: InvoiceRecord, accountName: st
   page.drawLine({ start: { x: 52, y: 744 }, end: { x: 543, y: 744 }, thickness: 1.25, color: rgb(0.87, 0.39, 0.05) });
 
   page.drawText("INVOICE", { x: 52, y: 706, size: 10, font: bold, color: rgb(0.87, 0.39, 0.05) });
-  page.drawText(`Invoice ${invoice.number || invoice.id.slice(0, 8).toUpperCase()}`, { x: 52, y: 676, size: 20, font: bold, color: rgb(0.07, 0.07, 0.07) });
+  page.drawText(`Invoice ${invoiceNumber}`, { x: 52, y: 676, size: 20, font: bold, color: rgb(0.07, 0.07, 0.07) });
   page.drawText(`Bill to: ${invoice.accountName || accountName}`, { x: 52, y: 640, size: 11, font });
   if (invoice.recipientName || recipientName) page.drawText(`Sent to: ${invoice.recipientName || recipientName}`, { x: 52, y: 622, size: 10, font, color: rgb(0.25, 0.25, 0.23) });
   if (invoice.recipientEmail || recipientEmail) page.drawText(`Email: ${invoice.recipientEmail || recipientEmail}`, { x: 52, y: 606, size: 9, font, color: rgb(0.42, 0.42, 0.42) });
@@ -99,12 +100,27 @@ export async function downloadInvoicePdf(invoice: InvoiceRecord, accountName: st
   if (invoice.discount) page.drawText(`Discount: -${formatMoney(invoice.discount, invoice.currency || "ZAR")}`, { x: 350, y: 162, size: 10, font });
   if (invoice.taxAmount) page.drawText(`Tax: ${formatMoney(invoice.taxAmount, invoice.currency || "ZAR")}`, { x: 350, y: 144, size: 10, font });
   page.drawText(`Total: ${formatMoney(total, invoice.currency || "ZAR")}`, { x: 350, y: 116, size: 16, font: bold, color: rgb(0.07, 0.07, 0.07) });
-  page.drawText(`Status: ${invoice.status || "draft"}`, { x: 52, y: 126, size: 9, font, color: rgb(0.42, 0.42, 0.42) });
-  page.drawLine({ start: { x: 52, y: 92 }, end: { x: 543, y: 92 }, thickness: 1.25, color: rgb(0.87, 0.39, 0.05) });
+  page.drawText(`Status: ${invoice.status || "draft"}`, { x: 350, y: 96, size: 9, font, color: rgb(0.42, 0.42, 0.42) });
+
+  page.drawRectangle({ x: 52, y: 96, width: 280, height: 116, color: rgb(0.97, 0.96, 0.94), borderColor: rgb(0.9, 0.89, 0.86), borderWidth: 0.75 });
+  page.drawText("BANKING DETAILS", { x: 64, y: 194, size: 9, font: bold, color: rgb(0.07, 0.07, 0.07) });
+  const bankingDetails = [
+    "Bank Branch Name: Standard Bank",
+    "Account Holder: Virtuo Designs (Pty) Ltd",
+    "Account Number: 10 23 986 724 4",
+    `Payment Reference: ${invoiceNumber}`,
+    "Branch Code: 1110",
+    "Type: Current",
+  ];
+  bankingDetails.forEach((detail, index) => {
+    page.drawText(detail, { x: 64, y: 178 - index * 15, size: 7.5, font, color: rgb(0.25, 0.25, 0.23) });
+  });
+
+  page.drawLine({ start: { x: 52, y: 72 }, end: { x: 543, y: 72 }, thickness: 1.25, color: rgb(0.87, 0.39, 0.05) });
   const companyLine = "Virtuo Designs (Pty) Ltd  |  CIPC Reg. 2025/014412/07  |  Firlands Minor Rd, Admirals Park, Cape Town, 7135";
   const contactLine = "virtuodesigns.co.za  |  hello@virtuodesigns.co.za  |  +27 69 771 4283";
-  page.drawText(companyLine, { x: (595 - font.widthOfTextAtSize(companyLine, 7.2)) / 2, y: 75, size: 7.2, font, color: rgb(0.42, 0.42, 0.42) });
-  page.drawText(contactLine, { x: (595 - font.widthOfTextAtSize(contactLine, 7.2)) / 2, y: 61, size: 7.2, font, color: rgb(0.42, 0.42, 0.42) });
+  page.drawText(companyLine, { x: (595 - font.widthOfTextAtSize(companyLine, 7.2)) / 2, y: 55, size: 7.2, font, color: rgb(0.42, 0.42, 0.42) });
+  page.drawText(contactLine, { x: (595 - font.widthOfTextAtSize(contactLine, 7.2)) / 2, y: 41, size: 7.2, font, color: rgb(0.42, 0.42, 0.42) });
 
-  download(await pdf.save(), `invoice-${invoice.number || invoice.id}.pdf`);
+  download(await pdf.save(), `invoice-${invoiceNumber}.pdf`);
 }

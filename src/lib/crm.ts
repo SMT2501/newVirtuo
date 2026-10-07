@@ -78,6 +78,9 @@ export type DocumentRecord = {
   declinedBy?: string;
   declineReason?: string;
   versionHistory?: { version: number; storagePath: string; name: string; contentType?: string; supersededAt?: unknown }[];
+  signingShareId?: string;
+  signingShareEnabled?: boolean;
+  signingShareVersion?: number;
 };
 
 export type InvoiceLineItem = {
