@@ -72,7 +72,7 @@ function AdminWorkspace() {
     setClientBusy(true);
     setMessage("");
     try {
-      const client = await createClientAuthAccount(clientEmail.trim(), clientPin);
+      const client = await createClientAuthAccount(clientEmail.trim());
       await setDoc(doc(db, "users", client.uid), {
         name: clientName.trim(),
         email: clientEmail.trim(),

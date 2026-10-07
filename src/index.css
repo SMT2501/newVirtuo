@@ -188,9 +188,9 @@
 .project-orbit-card[data-phase="enter"] { animation: project-orbit-in .45s ease-out both; }
 .project-preview-image { position: relative; aspect-ratio: 16 / 9; overflow: hidden; }
 .project-preview-copy { min-height: 12rem; }
-.project-orbit-button { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--background); border: 1px solid var(--border); }
-.project-orbit-button:hover { background: var(--secondary); }
-.project-orbit-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.project-orbit-button { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: hsl(var(--background)); border: 1px solid hsl(var(--border)); }
+.project-orbit-button:hover { background: hsl(var(--secondary)); }
+.project-orbit-button:focus-visible { outline: 2px solid hsl(var(--accent)); outline-offset: 2px; }
 .project-orbit-button:disabled { opacity: .45; cursor: default; }
 @keyframes project-orbit-out { from { opacity: 1; transform: rotate(0deg) scale(1); } to { opacity: 0; transform: rotate(-18deg) scale(.94); } }
 @keyframes project-orbit-in { from { opacity: 0; transform: rotate(18deg) scale(.94); } to { opacity: 1; transform: rotate(0deg) scale(1); } }
